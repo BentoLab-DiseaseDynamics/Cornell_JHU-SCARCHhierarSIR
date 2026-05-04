@@ -34,6 +34,7 @@ abs_dir = os.path.dirname(__file__)
 
 # global parameters go here
 ## model-structural
+use_garch = True
 gamma = 1/3.5
 n_modifiers = 26
 modifier_length = 7
@@ -42,11 +43,11 @@ start_simulation = -15
 regions = ['New England', 'Middle Atlantic']
 ## training metadata
 start_calibration_month = 10
-training_name = 'exclude_None'
+training_name = 'exclude_None-wGARCH'
 training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/training/{training_name}')
 ## forecasting settings
 seasons = ['2025-2026',]        # script only works with one season
-n_observations = 52             # use all data available in the forecast season
+n_observations = 25             # use all data available in the forecast season
 forecast_horizon = 4            # forecast 4 weeks ahead
 n_preoptim = 500
 n_sample = 10
@@ -93,19 +94,19 @@ fI_global_mean          = hyperpars['fI_global_mean'].unique()[0]
 fI_season_sd            = hyperpars['fI_season_sd'].unique()[0]
 fR_global_mean          = hyperpars['fR_global_mean'].unique()[0]
 fR_season_sd            = hyperpars['fR_season_sd'].unique()[0]
-omega                   = hyperpars['omega'].unique()[0]
-psi_spatial_shocks      = hyperpars['psi_spatial_shocks'].unique()[0]
-psi_spatial_modifiers   = hyperpars['psi_spatial_modifiers'].unique()[0]
-psi_global_mean         = hyperpars['psi_global_mean'].unique()[0]
+psi_2                   = hyperpars['psi_2'].unique()[0]
+phi_global_mean         = hyperpars['phi_global_mean'].unique()[0]
+phi_season_sd           = hyperpars['phi_season_sd'].unique()[0]
 kappa_global_mean       = hyperpars['kappa_global_mean'].unique()[0]
-phi                     = hyperpars['phi'].unique()[0]
-sigma2_0_sigma          = hyperpars['sigma2_0_sigma'].unique()[0]
+kappa_season_sd         = hyperpars['kappa_season_sd'].unique()[0]
+omega                   = hyperpars['omega'].unique()[0]
+nu                      = hyperpars['nu'].unique()[0]
 ## (state) vectors
 alpha_inv               = hyperpars['alpha_inv'].values
 rho_state               = hyperpars['rho_state'].values
 fI_state                = hyperpars['fI_state'].values
 fR_state                = hyperpars['fR_state'].values
-psi_state               = hyperpars['psi_state'].values
+phi_state               = hyperpars['phi_state'].values
 kappa_state             = hyperpars['kappa_state'].values
 
 ## hypermodifiers
@@ -202,31 +203,29 @@ with pm.Model(coords=coords) as model:
     ### state (rho_state)
     ### season (rho_season_sd)
     rho_season_raw = pm.Normal("rho_season_raw", 0, 1, dims="season")
-    log_rho = pt.log(rho_global_mean) + pt.log(rho_state)[None, :] + rho_season_sd * rho_season_raw[:, None]
-    rho = pm.Deterministic("rho", pt.exp(log_rho))
+    rho = pm.Deterministic("rho", pt.exp(pt.log(rho_global_mean) + pt.log(rho_state)[None, :] + rho_season_sd * rho_season_raw[:, None]))
 
     ## initial infected: fI
     ### global (fI_global_mean)
     ### state (fI_state)
     ### season (fI_season_sd)
     fI_season_raw = pm.Normal("fI_season_raw", 0, 1, dims="season")
-    log_fI = pt.log(fI_global_mean) + pt.log(fI_state)[None, :] + fI_season_sd * fI_season_raw[:, None]
-    fI = pm.Deterministic("fI", pt.exp(log_fI))
+    fI = pm.Deterministic("fI", pt.exp(pt.log(fI_global_mean) + pt.log(fI_state)[None, :] + fI_season_sd * fI_season_raw[:, None]))
 
     ## initial recovered: fR
     ### global (fR_global_mean)
     ### state (fR_state)
     ### season (fR_season_sd)
     fR_season_raw = pm.Normal("fR_season_raw", 0, 1, dims="season")
-    logit_fR = pm.math.logit(fR_global_mean) + pt.log(fR_state)[None, :] + fR_season_sd * fR_season_raw[:, None]
-    fR = pm.Deterministic("fR", pm.math.sigmoid(logit_fR))
+    fR = pm.Deterministic("fR", pm.math.sigmoid(pm.math.logit(fR_global_mean) + pt.log(fR_state)[None, :] + fR_season_sd * fR_season_raw[:, None]))
 
     # ------- AR-GARCH modifiers -----------
 
-    # Spatial correlation ('psi_spatial_shocks' hyperparameter)
+    # Spatial correlation ('psi_2' hyperparameter)
+    I = pt.eye(n_states)
     W = pt.as_tensor_variable(adj)
     D = pt.diag(pt.sum(W, axis=1))
-    Q_shocks = D - psi_spatial_shocks * W + 1e-6 * pt.eye(n_states)
+    Q_shocks = (1 - psi_2) * I + psi_2 * (D - W)
     L_Q_shocks = pt.slinalg.cholesky(Q_shocks)
     L_cov_shocks = pt.slinalg.solve(L_Q_shocks, pt.eye(n_states))
 
@@ -236,11 +235,12 @@ with pm.Model(coords=coords) as model:
     # Initial position
     z_0 = pt.zeros([n_states,])
     eps_0 = pt.zeros([n_states,])
-    # Steady state noise ('omega' hyperparameter)
     # Total AR persistence
-    ## global (psi_global_mean)
-    ## state (psi_state)
-    psi = pm.Deterministic("psi", pm.math.sigmoid(pm.math.logit(psi_global_mean) + pt.log(psi_state)))
+    ### global (phi_global_mean)
+    ### state (phi_state)
+    ### season (phi_season_sd)
+    phi_season_raw = pm.Normal("phi_season_raw", 0, 1, dims="season")
+    phi = pm.Deterministic("phi", pm.math.sigmoid(pm.math.logit(phi_global_mean) + pt.log(phi_state)[None, :] + phi_season_sd * phi_season_raw[:, None]))
     # sample iid standard normals as shocks
     eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, dims=("modifier","state"))
     # correlate them across space using the precision matrix 
@@ -248,20 +248,23 @@ with pm.Model(coords=coords) as model:
 
     # --- GARCH(1,1) parameters ---                                                                             
     # Total noise persistence
-    ## global (kappa_global_mean)
-    ## state (kappa_state)
-    kappa = pm.Deterministic("kappa", pm.math.sigmoid(pm.math.logit(kappa_global_mean) + pt.log(kappa_state)))      
-    # Split between a and b (phi & sigma2_0_sigma hyperparameter)                                                                                                             
-    a_garch = pm.Deterministic("a_garch", kappa * phi)                                                          
-    b_garch = pm.Deterministic("b_garch", kappa * (1 - phi))                           
-    sigma2_0 = pm.LogNormal("sigma2_0", mu=pt.log(omega/(1-kappa)), sigma=sigma2_0_sigma, dims="state")
+    ### global (kappa_global_mean)
+    ### state (kappa_state)
+    ### season (kappa_season_sd)
+    kappa_season_raw = pm.Normal("kappa_season_raw", 0, 1, dims="season")
+    kappa = pm.Deterministic("kappa", pm.math.sigmoid(pm.math.logit(kappa_global_mean) + pt.log(kappa_state)[None, :] + kappa_season_sd * kappa_season_raw[:, None]))
+     
+    # Split between a and b (nu hyperparameter)                                                                                                             
+    a_garch = pm.Deterministic("a_garch", kappa * nu)                                                          
+    b_garch = pm.Deterministic("b_garch", kappa * (1 - nu))                           
+    sigma2_0 = pm.Deterministic("sigma2_0", omega/(1-kappa), dims="state")
 
     # Run AR-GARCH scan over T steps
     z_seq, sigma2_seq, eps_seq = pytensor.scan(
         fn=AR_GARCH_step,
         sequences=[eta,],
         outputs_info=[z_0, sigma2_0, eps_0],
-        non_sequences=[psi, omega, a_garch, b_garch],
+        non_sequences=[phi, omega, a_garch, b_garch, pt.as_tensor_variable(1 if use_garch else 0)],
         return_updates=False
     )
 
@@ -294,7 +297,7 @@ with model:
 print(f"Step size post-tuning: {trace.sample_stats.step_size_bar.values}")
 
 # Generate traces
-variables2plot = ['rho', 'fI', 'fR', 'psi', 'kappa', 'sigma2_0']
+variables2plot = ['rho', 'fI', 'fR', 'phi', 'kappa', 'sigma2_0']
 
 # Save original traces
 os.makedirs(os.path.join(output_folder, 'traces'), exist_ok=True)

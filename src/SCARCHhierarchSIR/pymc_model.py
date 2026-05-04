@@ -96,10 +96,18 @@ def weighted_nb_random(*args, rng=None, size=None):
 ## AR(1)-GARCH(1,1) step function ##
 ####################################
 
-def AR_GARCH_step(eta_t, prev_z, prev_sigma2, prev_eps, psi, omega, a_garch, b_garch):
-    # --- GARCH(1,1) short-term shocks innovation scale ---
-    sigma2 = omega + a_garch * (prev_eps ** 2) + b_garch * prev_sigma2
+def AR_GARCH_step(eta_t, prev_z, prev_sigma2, prev_eps, psi, omega, a_garch, b_garch, use_garch):
+
+    # --- Compute variance ---
+    sigma2 = pt.switch(
+        use_garch,
+        omega + a_garch * (prev_eps ** 2) + b_garch * prev_sigma2,  # GARCH (1,1)
+        prev_sigma2                                                 # constant (= sigma2_0)
+    )
+    
+    # --- AR(1) ---
     eps = eta_t * pt.sqrt(sigma2)
-    # --- AR(1) short-term shocks ---
     z = psi * prev_z + eps
+
     return z, sigma2, eps
+

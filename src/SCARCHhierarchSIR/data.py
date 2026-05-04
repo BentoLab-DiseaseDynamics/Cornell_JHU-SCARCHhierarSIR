@@ -14,6 +14,7 @@ Licensed under CC BY-NC-SA 4.0
 
 import os
 import re
+import arviz
 import numpy as np
 import pandas as pd
 from pathlib import Path
