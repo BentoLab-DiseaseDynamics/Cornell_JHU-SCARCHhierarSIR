@@ -246,7 +246,7 @@ with pm.Model(coords=coords) as model:
     ### state (phi_state)
     ### season (phi_season_sd)
     phi_season_raw = pm.Normal("phi_season_raw", 0, 1, dims="season")
-    phi = pm.Deterministic("phi", pm.math.sigmoid(pm.math.logit(phi_global_mean) + pt.log(phi_state)[None, :] + phi_season_sd * phi_season_raw[:, None]))
+    phi = pm.Deterministic("phi", pt.squeeze(pm.math.sigmoid(pm.math.logit(phi_global_mean) + pt.log(phi_state)[None, :] + phi_season_sd * phi_season_raw[:, None])[0,:]))
     # sample iid standard normals as shocks
     eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, dims=("modifier","state"))
     # correlate them across space using the precision matrix 
@@ -258,11 +258,11 @@ with pm.Model(coords=coords) as model:
     ### state (kappa_state)
     ### season (kappa_season_sd)
     kappa_season_raw = pm.Normal("kappa_season_raw", 0, 1, dims="season")
-    kappa = pm.Deterministic("kappa", pm.math.sigmoid(pm.math.logit(kappa_global_mean) + pt.log(kappa_state)[None, :] + kappa_season_sd * kappa_season_raw[:, None]))
+    kappa = pm.Deterministic("kappa", pt.squeeze(pm.math.sigmoid(pm.math.logit(kappa_global_mean) + pt.log(kappa_state)[None, :] + kappa_season_sd * kappa_season_raw[:, None])[0,:]))
      
     # Split between a and b (nu hyperparameter)                                                                                                             
-    a_garch = pm.Deterministic("a_garch", kappa * nu)                                                          
-    b_garch = pm.Deterministic("b_garch", kappa * (1 - nu))                           
+    a_garch = pm.Deterministic("a_garch", kappa * nu)                                                        
+    b_garch = pm.Deterministic("b_garch", kappa * (1 - nu))                         
     sigma2_0 = pm.Deterministic("sigma2_0", omega/(1-kappa), dims="state")
 
     # Run AR-GARCH scan over T steps
