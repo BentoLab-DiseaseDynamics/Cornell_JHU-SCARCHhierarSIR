@@ -342,7 +342,7 @@ variables2plot = [
                 'delta_beta_state_mean',                                                                # delta_beta_mu
                 'psi_2', 'psi_1',                                                                       # spatial correlation strength
                 'phi_global_mean', 'phi_state_sd', 'phi_season_sd', 'phi',                              # AR 
-                'kappa_global_mean', 'kappa_state_sd', 'kappa_season_sd', 'kappa', 'omega', 'phi',      # GARCH parameters
+                'kappa_global_mean', 'kappa_state_sd', 'kappa_season_sd', 'kappa', 'omega', 'nu',      # GARCH parameters
                 'a_garch', 'b_garch', 'sigma2_0',
                 ]
 
