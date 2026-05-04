@@ -81,7 +81,7 @@ reference_date, data, dt, ts, n_observations = get_NHSN_HRD_data(start_calibrati
                                                                  forecast_horizon=forecast_horizon,
                                                                  state_fips=state_fips_index['fips_state'].values) # (n_season, n_variables, n_observations)
 data = data / 7                                     # divide weekly incidence by 7
-reference_date = dt[-1][-1] + timedelta(weeks=1)    # compute true reference date based on data instead of filename
+reference_date = dt[-1][-1] + timedelta(weeks=1) - timedelta(weeks=forecast_horizon)    # compute true reference date based on data instead of filename
 
 # output folder name
 output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/forecasting/{training_name}/reference_date-{reference_date.strftime('%Y-%m-%d')}')
