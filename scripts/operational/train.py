@@ -36,7 +36,7 @@ abs_dir = os.path.dirname(__file__)
 
 # global parameters go here
 ## model-structural
-use_garch = False
+use_garch = True
 gamma = 1/3.5
 n_modifiers = 26
 modifier_length = 7
@@ -48,10 +48,10 @@ n_observations = 30
 start_calibration_month = 10
 seasons = ['2023-2024', '2024-2025', '2025-2026']
 ## sampling effort
-n_chains = 3
-n_sample = 100
-n_burn = 25
-training_name = 'exclude_None-woGARCH'
+n_chains = 6
+n_sample = 250
+n_burn = 50
+training_name = 'exclude_None-wGARCH'
 n_preoptim = 1000
 
 # derived products

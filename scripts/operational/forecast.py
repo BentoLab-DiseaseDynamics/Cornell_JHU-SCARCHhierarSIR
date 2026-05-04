@@ -34,7 +34,7 @@ abs_dir = os.path.dirname(__file__)
 
 # global parameters go here
 ## model-structural
-use_garch = False
+use_garch = True
 gamma = 1/3.5
 n_modifiers = 26
 modifier_length = 7
@@ -43,7 +43,7 @@ start_simulation = -15
 regions = ['New England', 'Middle Atlantic']
 ## training metadata
 start_calibration_month = 10
-training_name = 'exclude_None-woGARCH'
+training_name = 'exclude_None-wGARCH'
 training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/training/{training_name}')
 ## forecasting settings
 seasons = ['2025-2026',]        # script only works with one season
