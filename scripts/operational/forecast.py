@@ -13,7 +13,7 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from datetime import datetime
+from datetime import datetime, timedelta
 # pyMC / pytensor
 import pymc as pm
 import arviz
@@ -55,13 +55,13 @@ n_tune = 10
 n_chains = 2
 sigma_grw = 0.375
 
+# TODO: make it so it can incrementally forecast
+
 # derived products
 ## convert to a list of start and enddates (datetime)
 n_seasons = len(seasons)
 start_calibrations = [datetime(int(season[0:4]), start_calibration_month, 1) for season in seasons]
 modifier_reference_dates = [datetime(int(season[0:4]), 10, 15) for season in seasons]
-## misc
-output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/forecasting/{training_name}')
 
 # Get US demographics
 # ~~~~~~~~~~~~~~~~~~~
@@ -77,8 +77,16 @@ adj = get_adjacency_matrix(state_fips_index['abbreviation_state'])
 # Get US incidence data
 # ~~~~~~~~~~~~~~~~~~~~~
 
-reference_date, data, dt, ts, n_observations = get_NHSN_HRD_data(start_calibrations, modifier_reference_dates, n_observations, forecast_horizon=forecast_horizon, state_fips=state_fips_index['fips_state'].values) # (n_season, n_variables, n_observations)
-data = data / 7 # divide weekly incidence by 7
+# get data
+reference_date, data, dt, ts, n_observations = get_NHSN_HRD_data(start_calibrations, modifier_reference_dates, n_observations,
+                                                                 type = 'hypothetical',
+                                                                 forecast_horizon=forecast_horizon,
+                                                                 state_fips=state_fips_index['fips_state'].values) # (n_season, n_variables, n_observations)
+data = data / 7                                     # divide weekly incidence by 7
+reference_date = dt[-1][-1] + timedelta(weeks=1) - timedelta(weeks=forecast_horizon)    # compute true reference date based on data instead of filename
+
+# output folder name
+output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/forecasting/{training_name}/reference_date-{reference_date.strftime('%Y-%m-%d')}')
 
 # Get the hyperparameters
 # ~~~~~~~~~~~~~~~~~~~~~~~
@@ -360,6 +368,8 @@ for s in range(n_states):
     os.makedirs(os.path.join(output_folder, 'goodness-fit'), exist_ok=True)
     plt.savefig(os.path.join(output_folder,f'goodness-fit/state_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
     plt.close(fig)
+
+# TODO: add the modifier trajectories
 
 # Send simulation output to Hubverse format
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

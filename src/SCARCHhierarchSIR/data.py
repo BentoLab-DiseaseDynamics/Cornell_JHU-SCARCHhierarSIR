@@ -227,10 +227,8 @@ def get_NHSN_HRD_data(
     """
 
     # determine type of data to use
-    if type == "preliminary":
-        data_folder = Path(abs_dir) / "../../data/interim/cases/NHSN-HRD_archive/preliminary/"
-    elif type == "preliminary_backfilled":
-        data_folder = Path(abs_dir) / "../../data/interim/cases/NHSN-HRD_archive/preliminary_backfilled/"
+    if type in ["preliminary", "preliminary_backfilled", "hypothetical"]:
+        data_folder = Path(abs_dir) / f"../../data/interim/cases/NHSN-HRD_archive/{type}/"
     else:
         raise ValueError("`type` must be 'preliminary' or 'preliminary_backfilled'.")
     # determine if training or forecasting
@@ -246,7 +244,6 @@ def get_NHSN_HRD_data(
         # load most recent dataset and its CDC FluSight reference date
         path, reference_date = get_most_recent_filename(data_folder)
         df = pd.read_parquet(path)
-
         # basic cleaning
         ## convert date column to datetime and fips_state to int
         df["date"] = pd.to_datetime(df["date"], format="ISO8601")
