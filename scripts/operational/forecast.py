@@ -55,6 +55,8 @@ n_tune = 10
 n_chains = 2
 sigma_grw = 0.375
 
+# TODO: make it so it can incrementally forecast
+
 # derived products
 ## convert to a list of start and enddates (datetime)
 n_seasons = len(seasons)
@@ -366,6 +368,8 @@ for s in range(n_states):
     os.makedirs(os.path.join(output_folder, 'goodness-fit'), exist_ok=True)
     plt.savefig(os.path.join(output_folder,f'goodness-fit/state_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
     plt.close(fig)
+
+# TODO: add the modifier trajectories
 
 # Send simulation output to Hubverse format
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
