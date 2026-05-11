@@ -111,10 +111,10 @@ where the modifier trajectory $\Delta \beta_{i,j}(t)$ is obtained by smoothing a
 \begin{equation}
     \Delta \mathcal{B}_{i,j} (l) = \Delta\bar{\mathcal{B}_{j}}(l) + z_{i,j}(l),
 \end{equation}
-where $\Delta\bar{\mathcal{B}_{j}}(l)$ is the seasonal mean modifier component in U.S.\ state or territory $j$ in week $l$, and $z_{i,j}(l)$ is the corresponding stochastic AR(1)--GARCH(1,1) component, which represents the current week's deviation from the seasonal mean modifier.
+where $\Delta\bar{\mathcal{B}_{j}}(l)$ is the seasonal mean modifier component in U.S.\ state or territory $j$ in week $l$, and $z_{i,j}(l)$ is the corresponding stochastic AR(1)--GARCH(1,1) component \citep{bollerslev1986}, which represents the current week's deviation from the seasonal mean modifier.
 
 \paragraph{Seasonal mean modifiers}
-Spatial correlation of the seasonal mean modifier is modeled using a Leroux-style conditional autogregressive or CAR model (Leroux, Lei, and Breslow, 2000), because it offers great flexibility (Lee, 2011),
+Spatial correlation of the seasonal mean modifier is modeled using a Leroux-style conditional autogregressive or CAR model \citep{leroux2000}, because it offers great flexibility \citep{lee2011},
 \begin{equation}
     \Delta \bar{\mathcal{B}}_j(l) \sim \Normal\big(\bm{0}, \sigma^2 \bm{Q}(\psi_1)^{-1}\big),
 \end{equation}
@@ -275,9 +275,11 @@ Figures~\ref{fig:forestplot_rho}-\ref{fig:forestplot_kappa} show the global, sea
     \label{fig:trace_psi_2}
 \end{figure}
 
+
 %-----------------------------------------------------------
+\clearpage
 \bibliographystyle{plainnat}
-\bibliography{references}
+\bibliography{bibliography}
 %-----------------------------------------------------------
 
 \end{document}
