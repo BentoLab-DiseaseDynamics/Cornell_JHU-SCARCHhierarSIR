@@ -171,4 +171,6 @@ data/interim/calibration/
 ## Latex files
 *.aux
 *.log
-*synctex.gz
+*.synctex.gz
+*.bbl
+*.blg
