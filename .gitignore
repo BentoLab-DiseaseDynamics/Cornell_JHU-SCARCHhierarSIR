@@ -167,3 +167,10 @@ dmypy.json
 
 ## Calibration data
 data/interim/calibration/
+
+## Latex files
+*.aux
+*.log
+*.synctex.gz
+*.bbl
+*.blg
