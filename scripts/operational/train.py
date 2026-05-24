@@ -564,7 +564,7 @@ for cluster_idx in cluster_indices:
 
     print(f'\ntraining of cluster {cluster_idx} complete!\n')
 
-print(f'\nmerging hyperparameters of clusters\n')
+print(f'\nmerging hyperparameters of all clusters\n')
 
 # concatenate all hyperparameters and save them
 output = pd.concat(hyperparameters, axis=0)
