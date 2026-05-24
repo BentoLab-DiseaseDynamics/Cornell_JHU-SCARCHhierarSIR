@@ -253,11 +253,11 @@ for cluster_idx in cluster_indices:
         D = pt.diag(pt.sum(W, axis=1))
 
         Q_modifiers = (1 - psi_1) * I + psi_1 * (D - W)
-        L_Q_modifiers = pt.slinalg.cholesky(Q_modifiers)
-        L_cov_modifiers = pt.slinalg.solve(L_Q_modifiers, I)
+        L_Q_modifiers = pt.linalg.cholesky(Q_modifiers)
+        L_cov_modifiers = pt.linalg.solve(L_Q_modifiers, I)
         Q_shocks = (1 - psi_2) * I + psi_2 * (D - W)
-        L_Q_shocks = pt.slinalg.cholesky(Q_shocks)
-        L_cov_shocks = pt.slinalg.solve(L_Q_shocks, I)
+        L_Q_shocks = pt.linalg.cholesky(Q_shocks)
+        L_cov_shocks = pt.linalg.solve(L_Q_shocks, I)
             
         # Hyperparameter for delta_beta_temporal
         delta_beta_raw = pm.Normal("delta_beta_raw", 0, 1, dims=("modifier","state"))
