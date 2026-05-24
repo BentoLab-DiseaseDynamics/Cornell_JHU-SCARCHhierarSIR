@@ -28,15 +28,15 @@ abs_dir = os.path.dirname(__file__)
 ## Data fetching and prepping ##
 ################################
 
-def get_demography(regions: Optional[Iterable[str]]=None) -> Tuple[pd.DataFrame, np.ndarray]:
+def get_demography(abbreviation_state_list: Optional[Iterable[str]]=None) -> Tuple[pd.DataFrame, np.ndarray]:
     """
     Load and optionally filter state-level demographic data.
 
     Parameters
     ----------
-    regions : Optional[Iterable[str]], default=None
-        Iterable of region names to filter on (matching `region_name` column in `~/data/interim/demography/demography.csv`).
-        If None, all regions are included.
+    abbreviation_state_list : Optional[Iterable[str]], default=None
+        Iterable of two-letter state abbreviations to include in the demography.
+        If None, all US states are included.
 
     Returns
     -------
@@ -52,8 +52,8 @@ def get_demography(regions: Optional[Iterable[str]]=None) -> Tuple[pd.DataFrame,
         os.path.join(abs_dir, "../../data/interim/demography/demography.csv"),
     )
 
-    if regions is not None:
-        demo = demo[demo["region_name"].isin(regions)]
+    if abbreviation_state_list is not None:
+        demo = demo[demo["abbreviation_state"].isin(abbreviation_state_list)]
 
     state_fips_index = demo[
         ["abbreviation_state", "name_state", "fips_state"]

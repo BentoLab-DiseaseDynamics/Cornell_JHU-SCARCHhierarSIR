@@ -18,7 +18,9 @@ Contains an overview of the raw data sources, and the conversion scripts used to
 
 ### Geography
 
-+ `adjacency_matrix.csv`: Adjacency matrix of US states.
++ `adjacency_matrix.csv`: Adjacency matrix of all US states.
+
++ `cluster.csv`: Encodes the clusters of US states the training/forecasting loop over. Shares the column `abbrevation_state` from `~/data/interim/demography/demography.csv`.
 
 ### NHSN-HRD_archive
 
