@@ -570,4 +570,4 @@ print(f'\nmerging hyperparameters of all clusters\n')
 output = pd.concat(hyperparameters, axis=0)
 output.to_csv(os.path.join(output_folder,'..',f"hyperparameters-{training_name}.csv"))
 
-print(f'\ntraining complete!')
+print(f'\ntraining complete!\n')
