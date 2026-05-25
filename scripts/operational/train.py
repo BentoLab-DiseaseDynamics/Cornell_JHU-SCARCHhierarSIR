@@ -471,9 +471,6 @@ for cluster_idx in cluster_indices:
         fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(11.7, 8.3),
                                 gridspec_kw={'height_ratios': [1, 3], 'width_ratios': [1, 1]})
         
-        # Make an arviz plotcollection
-        pc = arviz.PlotCollection.wrap(ds, grid={"row": ["__variable__"]}, fig=fig, plot_grid=np.array([[axes[0]]]))
-        
         # ---- Top row: global effect, spanning both columns ----
         ax_global = axes[0, 0]
         ax_global2 = axes[0, 1]
@@ -493,11 +490,13 @@ for cluster_idx in cluster_indices:
 
         # ---- Bottom row: state and season forest plots ----
         ## state
-        arviz.plot_forest(trace, var_names=[p_state], combined=True, hdi_prob=0.95, ax=axes[1, 0], colors='forestgreen')
+        ### TODO: Make forest plot manually
         axes[1, 0].axvline(1, color="black", linestyle="--")
         axes[1, 0].set_title(f"{e} state effects", fontsize=12)
         ## season
-        arviz.plot_forest(trace, var_names=[p_season], combined=True, hdi_prob=0.95, ax=axes[1, 1], colors='forestgreen')
+        ### TODO: Make forest plot manually
+        axes[1, 1].axvline(1, color="black", linestyle="--")
+        axes[1, 1].set_title(f"{e} season effects", fontsize=12)
         axes[1, 1].axvline(1, color="black", linestyle="--")
         axes[1, 1].set_title(f"{e} season effects", fontsize=12)
 
