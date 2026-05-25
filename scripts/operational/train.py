@@ -382,7 +382,7 @@ def run_training():
         # Save original traces
         os.makedirs(os.path.join(output_folder,'traces'), exist_ok=True)
         for var in variables2plot:
-            arviz.plot_trace_dist(trace, var_names=[var], compact=True, combined=True) 
+            arviz.plot_trace_dist(trace, var_names=[var], compact=True, combined=True, kind='kde') 
             plt.savefig(os.path.join(output_folder,f'traces/trace-{var}.pdf'))
             plt.close()
 
