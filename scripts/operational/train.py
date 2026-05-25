@@ -46,11 +46,11 @@ n_observations = 30
 start_calibration_month = 10
 seasons = ['2023-2024', '2024-2025', '2025-2026']
 ## sampling effort
-n_chains = 1
-n_sample = 2
-n_burn = 0
+n_chains = 6
+n_sample = 500
+n_burn = 100
 training_name = 'exclude_None-wGARCH'
-n_preoptim = 500
+n_preoptim = 1000
 
 # derived products
 ## convert to a list of start and enddates (datetime)
