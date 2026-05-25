@@ -17,9 +17,9 @@ import matplotlib.dates as mdates
 from datetime import datetime
 # pyMC / pytensor
 import pymc as pm
-import arviz
 import pytensor
 import pytensor.tensor as pt
+import arviz
 #pytensor.config.cxx = '/usr/bin/clang++'
 #pytensor.config.on_opt_error = "ignore"
 # jax and diffrax
@@ -29,7 +29,6 @@ from SCARCHhierarchSIR.data import get_demography, get_adjacency_matrix, get_NHS
 from SCARCHhierarchSIR.SIR_model import get_jax_jitted_model, make_sol_op
 from SCARCHhierarchSIR.pymc_model import AR_GARCH_step, compute_season_weights, weighted_nb_logp, weighted_nb_random
 from SCARCHhierarchSIR.preoptimization import preoptimize_parameters, compute_initial_effects
-
 
 # all paths defined relative to this file
 abs_dir = os.path.dirname(__file__)
@@ -347,7 +346,8 @@ for cluster_idx in cluster_indices:
         # set step size directly
         step = pm.NUTS(step_scale=0.005, target_accept=0.8, max_treedepth=10)   # for US: step_scale: 0.002 + max_treedepth 12, For NE+MA: step_scale: 0.005 + max_treedepth 10
         # run sampler without tuning
-        trace = pm.sample(n_sample, tune=0, chains=n_chains, init='adapt_diag', cores=1, progressbar=True, step = step,
+        trace = pm.sample(n_sample, tune=0, chains=n_chains, progressbar=True,
+                          cores=1, init='adapt_diag', step = step,
                             initvals=n_chains*[{'alpha_inv': 0.05 * pt.ones(n_states), 'delta_beta_raw': init["delta_beta_mu"] / 0.25,
                                     'log_rho_global_mean': init["log_rho"]["global"], 'rho_state_sd': 0.2, 'rho_state_raw': init["log_rho"]["state"] / 0.2, 'rho_season_sd': 0.2, 'rho_season_raw': init["log_rho"]["season"] / 0.2,
                                     'log_fI_global_mean': init["log_fI"]["global"], 'fI_state_sd': 0.2, 'fI_state_raw': init["log_fI"]["state"] / 0.2, 'fI_season_sd': 0.2, 'fI_season_raw': init["log_fI"]["season"] / 0.2,
@@ -376,15 +376,9 @@ for cluster_idx in cluster_indices:
     # Save original traces
     os.makedirs(os.path.join(output_folder,'traces'), exist_ok=True)
     for var in variables2plot:
-        arviz.plot_trace(trace, var_names=[var]) 
+        arviz.plot_trace_dist(trace, var_names=[var], compact=True, combined=True) 
         plt.savefig(os.path.join(output_folder,f'traces/trace-{var}.pdf'))
         plt.close()
-
-    # Build pair plots
-    arviz.plot_pair(trace, var_names=["kappa", "nu", "omega", "phi"], divergences=True)
-    plt.savefig(os.path.join(output_folder,'traces/pairplot-ARGARCH.pdf'))
-    plt.close()
-
 
     # Make posterior predictive
     # ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -394,8 +388,8 @@ for cluster_idx in cluster_indices:
         posterior_predictive = pm.sample_posterior_predictive(trace)
 
     # Save traces and posterior predictive
-    arviz.to_netcdf(trace, os.path.join(output_folder,"trace.nc"))
-    arviz.to_netcdf(posterior_predictive, os.path.join(output_folder,"posterior_predictive.nc"))
+    trace.to_netcdf(os.path.join(output_folder,"trace.nc"))
+    posterior_predictive.to_netcdf(os.path.join(output_folder,"posterior_predictive.nc"))
 
     # Visualisations
     # ~~~~~~~~~~~~~~
@@ -476,6 +470,9 @@ for cluster_idx in cluster_indices:
         
         fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(11.7, 8.3),
                                 gridspec_kw={'height_ratios': [1, 3], 'width_ratios': [1, 1]})
+        
+        # Make an arviz plotcollection
+        pc = arviz.PlotCollection.wrap(ds, grid={"row": ["__variable__"]}, fig=fig, plot_grid=np.array([[axes[0]]]))
         
         # ---- Top row: global effect, spanning both columns ----
         ax_global = axes[0, 0]
