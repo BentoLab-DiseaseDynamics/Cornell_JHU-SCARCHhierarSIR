@@ -52,9 +52,9 @@ def run_forecast():
     n_observations = 25             # use all data available in the forecast season
     forecast_horizon = 4            # forecast 4 weeks ahead
     n_preoptim = 1000
-    n_sample = 10
-    n_tune = 10
-    n_chains = 6
+    n_sample = 100
+    n_tune = 100
+    n_chains = 8
     sigma_grw = 0.01
 
     #TODO: incremental forecasting

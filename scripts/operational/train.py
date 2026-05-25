@@ -50,9 +50,9 @@ def run_training():
     start_calibration_month = 10
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
-    n_chains = 6
-    n_sample = 5
-    n_burn = 0
+    n_chains = 8
+    n_sample = 500
+    n_burn = 250
     training_name = 'exclude_None-wGARCH'
     n_preoptim = 1000
 
