@@ -1,6 +1,6 @@
 # Cornell_JHU-SCARCHhierarchSIR
 
-A hybrid SIR - Bayesian model for infectious disease forecasting. Successor to Cornell_JHU-hierarchSIR.
+An SIR model wrapped in a Bayesian hierarchical inference framework for short-term infectious disease forecasting. Implemented using `pyMC v6` and `arviz v1`. Successor to Cornell_JHU-hierarchSIR.
 
 ## Installation (local)
 
@@ -39,13 +39,28 @@ pip install -e . --force-reinstall
 
 ### Model training and forecasting
 
+#### Clustering 
+
+Modeling all 52 U.S. states and territories at once proved computationally infeasible and hence the model was broken down into smaller contiguous clusters. Currently, we use the four U.S. Census regions (Northeast, South, Midwest, West) with plans to replace them with the output of a clustering pipeline which aims to maximize the correlation between historical influenza hospital admissions in every cluster. The clustering pipeline will interface with the `SCARCHhierarchSIR` model through `~/data/interim/geography/cluster.csv`.
+
 #### Training (execute once at season start)
 
+```
+cd ~/scripts/operational/
+python train.py
+```
 
 #### Forecast (performed automatically using GH actions)
 
+```
+cd ~/scripts/operational/
+python forecast.py
+```
+
 ## Training on a cluster
 
-See ...
+The model has not yet been trained on a cluster.
 
 ## Workflows
+
+Automation of forecasts remains to be ported from `hierarchSIR`.

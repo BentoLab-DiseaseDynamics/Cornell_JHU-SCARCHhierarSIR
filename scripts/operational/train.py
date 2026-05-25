@@ -17,9 +17,9 @@ import matplotlib.dates as mdates
 from datetime import datetime
 # pyMC / pytensor
 import pymc as pm
-import arviz
 import pytensor
 import pytensor.tensor as pt
+import arviz
 #pytensor.config.cxx = '/usr/bin/clang++'
 #pytensor.config.on_opt_error = "ignore"
 # jax and diffrax
@@ -29,7 +29,6 @@ from SCARCHhierarchSIR.data import get_demography, get_adjacency_matrix, get_NHS
 from SCARCHhierarchSIR.SIR_model import get_jax_jitted_model, make_sol_op
 from SCARCHhierarchSIR.pymc_model import AR_GARCH_step, compute_season_weights, weighted_nb_logp, weighted_nb_random
 from SCARCHhierarchSIR.preoptimization import preoptimize_parameters, compute_initial_effects
-
 
 # all paths defined relative to this file
 abs_dir = os.path.dirname(__file__)
@@ -253,11 +252,11 @@ for cluster_idx in cluster_indices:
         D = pt.diag(pt.sum(W, axis=1))
 
         Q_modifiers = (1 - psi_1) * I + psi_1 * (D - W)
-        L_Q_modifiers = pt.slinalg.cholesky(Q_modifiers)
-        L_cov_modifiers = pt.slinalg.solve(L_Q_modifiers, I)
+        L_Q_modifiers = pt.linalg.cholesky(Q_modifiers)
+        L_cov_modifiers = pt.linalg.solve(L_Q_modifiers, I)
         Q_shocks = (1 - psi_2) * I + psi_2 * (D - W)
-        L_Q_shocks = pt.slinalg.cholesky(Q_shocks)
-        L_cov_shocks = pt.slinalg.solve(L_Q_shocks, I)
+        L_Q_shocks = pt.linalg.cholesky(Q_shocks)
+        L_cov_shocks = pt.linalg.solve(L_Q_shocks, I)
             
         # Hyperparameter for delta_beta_temporal
         delta_beta_raw = pm.Normal("delta_beta_raw", 0, 1, dims=("modifier","state"))
@@ -347,7 +346,8 @@ for cluster_idx in cluster_indices:
         # set step size directly
         step = pm.NUTS(step_scale=0.005, target_accept=0.8, max_treedepth=10)   # for US: step_scale: 0.002 + max_treedepth 12, For NE+MA: step_scale: 0.005 + max_treedepth 10
         # run sampler without tuning
-        trace = pm.sample(n_sample, tune=0, chains=n_chains, init='adapt_diag', cores=1, progressbar=True, step = step,
+        trace = pm.sample(n_sample, tune=0, chains=n_chains, progressbar=True,
+                          cores=1, init='adapt_diag', step = step,
                             initvals=n_chains*[{'alpha_inv': 0.05 * pt.ones(n_states), 'delta_beta_raw': init["delta_beta_mu"] / 0.25,
                                     'log_rho_global_mean': init["log_rho"]["global"], 'rho_state_sd': 0.2, 'rho_state_raw': init["log_rho"]["state"] / 0.2, 'rho_season_sd': 0.2, 'rho_season_raw': init["log_rho"]["season"] / 0.2,
                                     'log_fI_global_mean': init["log_fI"]["global"], 'fI_state_sd': 0.2, 'fI_state_raw': init["log_fI"]["state"] / 0.2, 'fI_season_sd': 0.2, 'fI_season_raw': init["log_fI"]["season"] / 0.2,
@@ -369,22 +369,16 @@ for cluster_idx in cluster_indices:
                     'delta_beta_state_mean',                                                                # delta_beta_mu
                     'psi_2', 'psi_1',                                                                       # spatial correlation strength
                     'phi_global_mean', 'phi_state_sd', 'phi_season_sd', 'phi',                              # AR 
-                    'kappa_global_mean', 'kappa_state_sd', 'kappa_season_sd', 'kappa', 'omega', 'nu',      # GARCH parameters
+                    'kappa_global_mean', 'kappa_state_sd', 'kappa_season_sd', 'kappa', 'omega', 'nu',       # GARCH parameters
                     'a_garch', 'b_garch', 'sigma2_0',
                     ]
 
     # Save original traces
     os.makedirs(os.path.join(output_folder,'traces'), exist_ok=True)
     for var in variables2plot:
-        arviz.plot_trace(trace, var_names=[var]) 
+        arviz.plot_trace_dist(trace, var_names=[var], compact=True, combined=True) 
         plt.savefig(os.path.join(output_folder,f'traces/trace-{var}.pdf'))
         plt.close()
-
-    # Build pair plots
-    arviz.plot_pair(trace, var_names=["kappa", "nu", "omega", "phi"], divergences=True)
-    plt.savefig(os.path.join(output_folder,'traces/pairplot-ARGARCH.pdf'))
-    plt.close()
-
 
     # Make posterior predictive
     # ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -394,8 +388,8 @@ for cluster_idx in cluster_indices:
         posterior_predictive = pm.sample_posterior_predictive(trace)
 
     # Save traces and posterior predictive
-    arviz.to_netcdf(trace, os.path.join(output_folder,"trace.nc"))
-    arviz.to_netcdf(posterior_predictive, os.path.join(output_folder,"posterior_predictive.nc"))
+    trace.to_netcdf(os.path.join(output_folder,"trace.nc"))
+    posterior_predictive.to_netcdf(os.path.join(output_folder,"posterior_predictive.nc"))
 
     # Visualisations
     # ~~~~~~~~~~~~~~
@@ -473,7 +467,7 @@ for cluster_idx in cluster_indices:
     effect_type = ['Multiplicative', 'Multiplicative', 'Odds-ratio', 'Odds-ratio', 'Odds-ratio']
 
     for n, p_state, p_season, g, p, e in zip(labels_params, state_params, season_params, global_params, params, effect_type):
-        
+
         fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(11.7, 8.3),
                                 gridspec_kw={'height_ratios': [1, 3], 'width_ratios': [1, 1]})
         
@@ -496,13 +490,58 @@ for cluster_idx in cluster_indices:
 
         # ---- Bottom row: state and season forest plots ----
         ## state
-        arviz.plot_forest(trace, var_names=[p_state], combined=True, hdi_prob=0.95, ax=axes[1, 0], colors='forestgreen')
+        samples = trace.posterior[p_state].stack(sample=("chain", "draw"))
+        # compute median and HDI
+        median = samples.median(dim="sample").values
+        hdi = arviz.hdi(samples, prob=0.95, dim="sample")
+        lower = hdi.sel(ci_bound="lower").values
+        upper = hdi.sel(ci_bound="upper").values
+        # labels
+        states = samples["state"].values
+        # y positions
+        y = np.arange(len(states))
+        # horizontal intervals
+        axes[1, 0].hlines(y, lower, upper, linewidth=2, color='forestgreen')
+        # median points
+        axes[1, 0].plot(median, y, "o", color='black')
+        # reference line
         axes[1, 0].axvline(1, color="black", linestyle="--")
+        # formatting
+        axes[1, 0].set_yticks(y)
+        axes[1, 0].set_yticklabels(states)
+        axes[1, 0].invert_yaxis()
         axes[1, 0].set_title(f"{e} state effects", fontsize=12)
+        axes[1, 0].set_xlabel("Effect size")
+        # cleanup
+        axes[1, 0].spines['top'].set_visible(False)
+        axes[1, 0].spines['right'].set_visible(False)
+
         ## season
-        arviz.plot_forest(trace, var_names=[p_season], combined=True, hdi_prob=0.95, ax=axes[1, 1], colors='forestgreen')
+        samples = trace.posterior[p_season].stack(sample=("chain", "draw"))
+        # compute median and HDI
+        median = samples.median(dim="sample").values
+        hdi = arviz.hdi(samples, prob=0.95, dim="sample")
+        lower = hdi.sel(ci_bound="lower").values
+        upper = hdi.sel(ci_bound="upper").values
+        # labels
+        states = samples["season"].values
+        # y positions
+        y = np.arange(len(states))
+        # horizontal intervals
+        axes[1, 1].hlines(y, lower, upper, linewidth=2, color='forestgreen')
+        # median points
+        axes[1, 1].plot(median, y, "o", color="black")
+        # reference line
         axes[1, 1].axvline(1, color="black", linestyle="--")
+        # formatting
+        axes[1, 1].set_yticks(y)
+        axes[1, 1].set_yticklabels(states)
+        axes[1, 1].invert_yaxis()
         axes[1, 1].set_title(f"{e} season effects", fontsize=12)
+        axes[1, 1].set_xlabel("Effect size")
+        # cleanup
+        axes[1, 1].spines['top'].set_visible(False)
+        axes[1, 1].spines['right'].set_visible(False)
 
         plt.tight_layout()
         plt.savefig(os.path.join(output_folder,f'traces/forestplot-{p}.pdf'))

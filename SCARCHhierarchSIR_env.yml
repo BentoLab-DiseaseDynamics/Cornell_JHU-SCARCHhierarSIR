@@ -4,8 +4,8 @@ channels:
   - defaults
 dependencies:
   - python=3.13
-  - pymc>=5 
-  - arviz<1.0  
+  - pymc>=6
+  - arviz>1
   - pytensor
   - jax
   - diffrax  
@@ -18,3 +18,4 @@ dependencies:
   - pyarrow
   - fastparquet
   - openpyxl
+  - netcdf4

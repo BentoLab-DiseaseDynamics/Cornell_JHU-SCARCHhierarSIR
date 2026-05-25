@@ -245,7 +245,7 @@ class SolOp(Op):
         ys = self.jitted_sol_op(args_diff, args_nodiff, self.args_static)
         outputs[0][0] = np.asarray(ys, dtype=np.float64)
 
-    def grad(self, inputs, output_grads):
+    def pullback(self, inputs, outputs, output_grads):
         args_diff, args_nodiff = inputs
         (gz,) = output_grads
 

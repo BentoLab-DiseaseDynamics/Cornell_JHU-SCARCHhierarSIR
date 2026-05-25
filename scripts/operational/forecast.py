@@ -47,10 +47,10 @@ training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/trainin
 seasons = ['2025-2026',]        # script only works with one season
 n_observations = 25             # use all data available in the forecast season
 forecast_horizon = 4            # forecast 4 weeks ahead
-n_preoptim = 200
-n_sample = 2
-n_tune = 2
-n_chains = 1
+n_preoptim = 1000
+n_sample = 100
+n_tune = 100
+n_chains = 3
 sigma_grw = 0.375
 
 #TODO: incremental forecasting
@@ -259,8 +259,8 @@ for cluster_idx in cluster_indices:
         W = pt.as_tensor_variable(adj)
         D = pt.diag(pt.sum(W, axis=1))
         Q_shocks = (1 - psi_2) * I + psi_2 * (D - W)
-        L_Q_shocks = pt.slinalg.cholesky(Q_shocks)
-        L_cov_shocks = pt.slinalg.solve(L_Q_shocks, pt.eye(n_states))
+        L_Q_shocks = pt.linalg.cholesky(Q_shocks)
+        L_cov_shocks = pt.linalg.solve(L_Q_shocks, pt.eye(n_states))
 
         # Hyperparameter for delta_beta_temporal (delta_beta_state_mean hyperparameter, shape: n_modifiers x n_states)
 
@@ -337,7 +337,7 @@ for cluster_idx in cluster_indices:
     # Save original traces
     os.makedirs(os.path.join(output_folder, 'traces'), exist_ok=True)
     for var in variables2plot:
-        arviz.plot_trace(trace, var_names=[var]) 
+        arviz.plot_trace_dist(trace, var_names=[var], compact=True, combined=True) 
         plt.savefig(os.path.join(output_folder, f'traces/trace-{var}.pdf'))
         plt.close()
 
@@ -360,8 +360,8 @@ for cluster_idx in cluster_indices:
 
 
     # Save traces and posterior predictive
-    arviz.to_netcdf(trace, os.path.join(output_folder, "trace.nc"))
-    arviz.to_netcdf(posterior_predictive, os.path.join(output_folder, "posterior_predictive.nc"))
+    trace.to_netcdf(os.path.join(output_folder, "trace.nc"))
+    posterior_predictive.to_netcdf(os.path.join(output_folder, "posterior_predictive.nc"))
 
     # Visualise goodness-of-fit
     # ~~~~~~~~~~~~~~~~~~~~~~~~~
