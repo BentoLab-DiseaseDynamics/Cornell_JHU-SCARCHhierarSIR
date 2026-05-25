@@ -467,7 +467,7 @@ for cluster_idx in cluster_indices:
     effect_type = ['Multiplicative', 'Multiplicative', 'Odds-ratio', 'Odds-ratio', 'Odds-ratio']
 
     for n, p_state, p_season, g, p, e in zip(labels_params, state_params, season_params, global_params, params, effect_type):
-        
+
         fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(11.7, 8.3),
                                 gridspec_kw={'height_ratios': [1, 3], 'width_ratios': [1, 1]})
         
@@ -490,15 +490,58 @@ for cluster_idx in cluster_indices:
 
         # ---- Bottom row: state and season forest plots ----
         ## state
-        ### TODO: Make forest plot manually
+        samples = trace.posterior[p_state].stack(sample=("chain", "draw"))
+        # compute median and HDI
+        median = samples.median(dim="sample").values
+        hdi = arviz.hdi(samples, prob=0.95, dim="sample")
+        lower = hdi.sel(ci_bound="lower").values
+        upper = hdi.sel(ci_bound="upper").values
+        # labels
+        states = samples["state"].values
+        # y positions
+        y = np.arange(len(states))
+        # horizontal intervals
+        axes[1, 0].hlines(y, lower, upper, linewidth=2, color='forestgreen')
+        # median points
+        axes[1, 0].plot(median, y, "o", color='black')
+        # reference line
         axes[1, 0].axvline(1, color="black", linestyle="--")
+        # formatting
+        axes[1, 0].set_yticks(y)
+        axes[1, 0].set_yticklabels(states)
+        axes[1, 0].invert_yaxis()
         axes[1, 0].set_title(f"{e} state effects", fontsize=12)
+        axes[1, 0].set_xlabel("Effect size")
+        # cleanup
+        axes[1, 0].spines['top'].set_visible(False)
+        axes[1, 0].spines['right'].set_visible(False)
+
         ## season
-        ### TODO: Make forest plot manually
+        samples = trace.posterior[p_season].stack(sample=("chain", "draw"))
+        # compute median and HDI
+        median = samples.median(dim="sample").values
+        hdi = arviz.hdi(samples, prob=0.95, dim="sample")
+        lower = hdi.sel(ci_bound="lower").values
+        upper = hdi.sel(ci_bound="upper").values
+        # labels
+        states = samples["season"].values
+        # y positions
+        y = np.arange(len(states))
+        # horizontal intervals
+        axes[1, 1].hlines(y, lower, upper, linewidth=2, color='forestgreen')
+        # median points
+        axes[1, 1].plot(median, y, "o", color="black")
+        # reference line
         axes[1, 1].axvline(1, color="black", linestyle="--")
+        # formatting
+        axes[1, 1].set_yticks(y)
+        axes[1, 1].set_yticklabels(states)
+        axes[1, 1].invert_yaxis()
         axes[1, 1].set_title(f"{e} season effects", fontsize=12)
-        axes[1, 1].axvline(1, color="black", linestyle="--")
-        axes[1, 1].set_title(f"{e} season effects", fontsize=12)
+        axes[1, 1].set_xlabel("Effect size")
+        # cleanup
+        axes[1, 1].spines['top'].set_visible(False)
+        axes[1, 1].spines['right'].set_visible(False)
 
         plt.tight_layout()
         plt.savefig(os.path.join(output_folder,f'traces/forestplot-{p}.pdf'))
