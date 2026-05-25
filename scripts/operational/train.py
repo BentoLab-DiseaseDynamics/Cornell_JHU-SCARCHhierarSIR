@@ -355,7 +355,7 @@ for cluster_idx in cluster_indices:
                                     'logit_phi_global_mean': 0.75, 'logit_kappa_global_mean': 0.75}])
     
     print('\n..finished sampling\n')
-    print('\ngenerating diagnostics\n')
+    print('\ngenerating diagnostic plots\n')
 
     # manual burn
     trace = trace.isel(draw=slice(n_burn, None))
