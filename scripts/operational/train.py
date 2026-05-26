@@ -48,13 +48,13 @@ def run_training():
     ## clustering
     clustering_name = 'all'
     ## temporal extent of training
-    n_observations = 30
+    n_observations = 33
     start_calibration_month = 10
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 500
-    n_burn = 250
+    n_sample = 250
+    n_burn = 150
     training_name = 'exclude_None-wGARCH'
     n_preoptim = 1000
 
@@ -351,7 +351,8 @@ def run_training():
 
         with model:
             # set step size directly
-            step = pm.NUTS(step_scale=0.005, target_accept=0.8, max_treedepth=10)   # for US: step_scale: 0.002 + max_treedepth 12, For NE+MA: step_scale: 0.005 + max_treedepth 10
+            # for US: step_scale: 0.002 + max_treedepth 12, For U.S. census regions: step_scale: 0.005 + max_treedepth 10
+            step = pm.NUTS(step_scale=0.002, target_accept=0.8, max_treedepth=12)   
             # run sampler without tuning
             trace = pm.sample(n_sample, tune=0, chains=n_chains, progressbar=True,
                             cores=n_chains, init='adapt_diag', step = step,
