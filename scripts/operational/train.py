@@ -45,6 +45,8 @@ def run_training():
     n_modifiers = 26
     modifier_length = 7
     start_simulation = -15 # (October 1)
+    ## clustering
+    clustering_name = 'all'
     ## temporal extent of training
     n_observations = 30
     start_calibration_month = 10
@@ -69,7 +71,7 @@ def run_training():
     # ~~~~~~~~~~~~~~~~
 
     clusters = pd.read_csv(os.path.join(abs_dir, "../../data/interim/geography/clusters.csv"))
-    cluster_indices = sorted(clusters['cluster_idx'].unique())
+    cluster_indices = sorted(clusters[clustering_name].unique())
 
     # Loop over the clusters
     # ~~~~~~~~~~~~~~~~~~~~~~
@@ -80,14 +82,14 @@ def run_training():
         print(f'\nworking on cluster {cluster_idx}')
         print('~~~~~~~~~~~~~~~~~~~~\n')
 
-        print(f'states in cluster: {clusters[clusters['cluster_idx'] == cluster_idx]['abbreviation_state'].values.tolist()}\n')
+        print(f'states in cluster: {clusters[clusters[clustering_name] == cluster_idx]['abbreviation_state'].values.tolist()}\n')
 
         output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/training/{training_name}/cluster_{cluster_idx}')
 
         # Get US demographics
         # ~~~~~~~~~~~~~~~~~~~
 
-        state_fips_index, demo = get_demography(clusters[clusters['cluster_idx'] == cluster_idx]['abbreviation_state'])
+        state_fips_index, demo = get_demography(clusters[clusters[clustering_name] == cluster_idx]['abbreviation_state'])
         n_states = len(demo)
 
         # Get state adjacency matrix
