@@ -43,6 +43,8 @@ def run_forecast():
     n_modifiers = 26
     modifier_length = 7
     start_simulation = -15
+    ## clustering
+    clustering_name = 'all'
     ## training metadata
     start_calibration_month = 10
     training_name = 'exclude_None-wGARCH'
@@ -70,7 +72,7 @@ def run_forecast():
     # ~~~~~~~~~~~~~~~~
 
     clusters = pd.read_csv(os.path.join(abs_dir, "../../data/interim/geography/clusters.csv"))
-    cluster_indices = sorted(clusters['cluster_idx'].unique())
+    cluster_indices = sorted(clusters[clustering_name].unique())
 
     # Loop over the clusters
     # ~~~~~~~~~~~~~~~~~~~~~~
@@ -81,13 +83,13 @@ def run_forecast():
         print(f'\nworking on cluster {cluster_idx}')
         print('~~~~~~~~~~~~~~~~~~~~\n')
 
-        print(f'states in cluster: {clusters[clusters['cluster_idx'] == cluster_idx]['abbreviation_state'].values.tolist()}\n')
+        print(f'states in cluster: {clusters[clusters[clustering_name] == cluster_idx]['abbreviation_state'].values.tolist()}\n')
 
 
         # Get US demographics
         # ~~~~~~~~~~~~~~~~~~~
 
-        state_fips_index, demo = get_demography(clusters[clusters['cluster_idx'] == cluster_idx]['abbreviation_state'])
+        state_fips_index, demo = get_demography(clusters[clusters[clustering_name] == cluster_idx]['abbreviation_state'])
         n_states = len(demo)
 
         # Get state adjacency matrix

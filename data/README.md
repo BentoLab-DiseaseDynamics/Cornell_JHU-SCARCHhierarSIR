@@ -20,7 +20,7 @@ Contains an overview of the raw data sources, and the conversion scripts used to
 
 + `adjacency_matrix.csv`: Adjacency matrix of all US states.
 
-+ `cluster.csv`: Encodes the clusters of US states the training/forecasting loop over. Shares the column `abbrevation_state` from `~/data/interim/demography/demography.csv`.
++ `cluster.csv`: Encodes the clusters of US states the training/forecasting loop over. Must start with cluster 0, then 1, 2, 3, etc. The column `all` encodes having no clusters (run model for whole U.S.), while `census_regions` follows the four U.S. census regions. Shares the column `abbrevation_state` from `~/data/interim/demography/demography.csv` as index.
 
 ### NHSN-HRD_archive
 
