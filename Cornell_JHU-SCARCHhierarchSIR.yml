@@ -5,7 +5,7 @@ model_abbr: "SCARCHhierarchSIR"
 model_contributors: [
   {
     "name": "Tijs W. Alleman",
-    "affiliation": "Cornell University, Ghent University",
+    "affiliation": "Cornell University, Ghent University (former JHU)",
     "email": "twa27@cornell.edu",
     "orcid": "0000-0002-1751-3801"
   },
