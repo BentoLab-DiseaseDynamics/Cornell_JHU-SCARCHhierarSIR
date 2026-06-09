@@ -17,7 +17,7 @@ dependencies = [
     "jax",
     "diffrax",
     "optax",
-    "pymc>=5.0",
+    "pymc>=6.0",
     "pytensor",
     "openpyxl",
     "pytest",
