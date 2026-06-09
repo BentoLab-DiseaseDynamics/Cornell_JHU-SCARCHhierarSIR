@@ -14,9 +14,117 @@ Licensed under CC BY-NC-SA 4.0
 
 import numpy as np
 import pymc as pm
+import xarray as xr
 import pytensor.tensor as pt
 
+#################################################
+## Extraction of last sample from previous run ##
+#################################################
 
+def trace_to_initvals(trace, free_rvs):
+    """
+    Convert the last draw of an ArviZ InferenceData object
+    into a PyMC initvals list.
+
+    Parameters
+    ----------
+    trace : arviz.InferenceData
+        Loaded trace.
+    free_rvs : list[str]
+        Names of free random variables expected by the model.
+
+    Returns
+    -------
+    list[dict]
+        One dictionary per chain, suitable for pm.sample(initvals=...)
+    """
+
+    posterior = trace.posterior 
+    initvals = []
+
+    for chain in posterior.chain.values:
+
+        chain_init = {}
+
+        for rv_name in free_rvs:
+
+            if rv_name not in list(posterior.data_vars):
+                raise KeyError(
+                    f"Variable '{rv_name}' not found in trace."
+                )
+
+            value = (
+                posterior[rv_name]
+                .sel(chain=chain)
+                .isel(draw=-1)
+                .values
+            )
+
+            # convert xarray -> numpy scalar/array
+            chain_init[rv_name] = np.asarray(value)
+
+        initvals.append(chain_init)
+
+    return initvals
+
+####################################
+## Concatenation of trace objects ##
+####################################
+
+def concat_traces(trace1: xr.DataTree, trace2: xr.DataTree) -> xr.DataTree:
+    """
+    Concatenate two PyMC/ArviZ DataTree traces along the draw dimension.
+
+    Parameters
+    ----------
+    trace1 : DataTree
+        Existing trace.
+    trace2 : DataTree
+        New continuation trace.
+
+    Returns
+    -------
+    DataTree
+        Combined trace with draw coordinates re-indexed.
+    """
+
+    children = {}
+
+    # iterate over top-level groups
+    for group_name in trace1.children:
+
+        ds1 = trace1[group_name].ds
+
+        # if missing from second trace, keep original
+        if group_name not in trace2.children:
+            children[group_name] = xr.DataTree(ds1)
+            continue
+
+        ds2 = trace2[group_name].ds
+
+        # concatenate groups containing draws
+        if "draw" in ds1.dims:
+
+            ds = xr.concat(
+                [ds1, ds2],
+                dim="draw",
+                coords="minimal",
+                compat="override",
+                combine_attrs="override",
+            )
+
+            # re-index draw coordinate
+            ds = ds.assign_coords(
+                draw=np.arange(ds.sizes["draw"])
+            )
+
+            children[group_name] = xr.DataTree(ds)
+
+        else:
+            # observed_data etc.
+            children[group_name] = xr.DataTree(ds1)
+
+    return xr.DataTree(children=children)
 
 ##############################
 ## Tempered NB distribution ##
