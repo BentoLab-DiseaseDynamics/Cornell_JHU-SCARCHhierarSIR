@@ -25,10 +25,10 @@ import pytensor.tensor as pt
 # jax and diffrax
 import jax.numpy as jnp
 # model package
-from SCARCHhierarchSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, simout_to_hubverse
-from SCARCHhierarchSIR.SIR_model import get_jax_jitted_model, make_sol_op
-from SCARCHhierarchSIR.pymc_model import AR_GARCH_step, compute_season_weights, weighted_nb_logp, weighted_nb_random
-from SCARCHhierarchSIR.preoptimization import preoptimize_parameters
+from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, simout_to_hubverse
+from SCARCHhierarSIR.SIR_model import get_jax_jitted_model, make_sol_op
+from SCARCHhierarSIR.pymc_model import AR_GARCH_step, compute_season_weights, weighted_nb_logp, weighted_nb_random
+from SCARCHhierarSIR.preoptimization import preoptimize_parameters
 
 # needed to use the 'spawn' multiprocessing context manager
 def run_forecast():
@@ -66,7 +66,7 @@ def run_forecast():
     n_seasons = len(seasons)
     start_calibrations = [datetime(int(season[0:4]), start_calibration_month, 1) for season in seasons]
     modifier_reference_dates = [datetime(int(season[0:4]), 10, 15) for season in seasons]
-    model_name = 'SCARCHhierarchSIR' if use_garch else 'SCARhierarchSIR'
+    model_name = 'SCARCHhierarSIR' if use_garch else 'SCARhierarSIR'
 
     # Get the clusters
     # ~~~~~~~~~~~~~~~~
@@ -427,7 +427,7 @@ def run_forecast():
                                     quantiles=True)
 
         # save result
-        hv_out.to_csv(os.path.join(output_folder, reference_date.strftime('%Y-%m-%d')+'-JHU_Cornell'+'-'+'SCARCHhierarchSIR.csv'), index=False)
+        hv_out.to_csv(os.path.join(output_folder, reference_date.strftime('%Y-%m-%d')+'-JHU_Cornell'+'-'+'SCARCHhierarSIR.csv'), index=False)
 
         # append to output list
         forecasts.append(hv_out)

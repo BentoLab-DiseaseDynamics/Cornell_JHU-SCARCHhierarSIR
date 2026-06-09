@@ -1,4 +1,4 @@
-name: BENTOLAB-SCARCH_HIERARCHSIR
+name: BENTOLAB-SCARCH_HIERARSIR
 channels:
   - conda-forge
   - defaults

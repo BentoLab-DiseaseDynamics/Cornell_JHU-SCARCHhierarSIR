@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 import matplotlib.pyplot as plt
-from SCARCHhierarchSIR.data import get_most_recent_filename
+from SCARCHhierarSIR.data import get_most_recent_filename
 
 # define paths globally
 abs_dir = os.path.dirname(__file__)

@@ -2,7 +2,7 @@ Copyright (c) 2026 T.W. Alleman
 
 This work is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License.
 
-You should have received a copy of the license along with the "Cornell_JHU-SCARCHhierarchSIR" GitHub code repository. If not, see:
+You should have received a copy of the license along with the "Cornell_JHU-SCARCHhierarSIR" GitHub code repository. If not, see:
 https://creativecommons.org/licenses/by-nc-sa/4.0/
 
 ---
