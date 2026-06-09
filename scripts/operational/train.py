@@ -27,10 +27,10 @@ import arviz
 # jax and diffrax
 import jax.numpy as jnp
 # model package
-from SCARCHhierarchSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data
-from SCARCHhierarchSIR.SIR_model import get_jax_jitted_model, make_sol_op
-from SCARCHhierarchSIR.pymc_model import AR_GARCH_step, compute_season_weights, weighted_nb_logp, weighted_nb_random, trace_to_initvals, concat_traces
-from SCARCHhierarchSIR.preoptimization import preoptimize_parameters, compute_initial_effects
+from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data
+from SCARCHhierarSIR.SIR_model import get_jax_jitted_model, make_sol_op
+from SCARCHhierarSIR.pymc_model import AR_GARCH_step, compute_season_weights, weighted_nb_logp, weighted_nb_random, trace_to_initvals, concat_traces
+from SCARCHhierarSIR.preoptimization import preoptimize_parameters, compute_initial_effects
 
 # needed to use the 'spawn' multiprocessing context manager
 def run_training():
