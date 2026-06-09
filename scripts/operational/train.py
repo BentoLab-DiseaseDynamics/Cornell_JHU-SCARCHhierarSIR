@@ -57,6 +57,8 @@ def run_training():
     n_burn = 150
     training_name = 'exclude_None-wGARCH'
     n_preoptim = 1000
+    ## use previous sampling
+    cont_sampling = True   # To continue sampling, the number of chains and the observed data must match!
 
     # derived products
     ## convert to a list of start and enddates (datetime)
@@ -163,6 +165,13 @@ def run_training():
 
         # compute pyMC initial effect sizes
         init = compute_initial_effects(args_diff_preoptim)
+
+        # make dictionary with initial sampler values
+        initvals = n_chains * [{'alpha_inv': 0.05 * pt.ones(n_states), 'delta_beta_raw': init["delta_beta_mu"] / 0.25,
+                'log_rho_global_mean': init["log_rho"]["global"], 'rho_state_sd': 0.2, 'rho_state_raw': init["log_rho"]["state"] / 0.2, 'rho_season_sd': 0.2, 'rho_season_raw': init["log_rho"]["season"] / 0.2,
+                'log_fI_global_mean': init["log_fI"]["global"], 'fI_state_sd': 0.2, 'fI_state_raw': init["log_fI"]["state"] / 0.2, 'fI_season_sd': 0.2, 'fI_season_raw': init["log_fI"]["season"] / 0.2,
+                'logit_fR_global_mean': init["logit_fR"]["global"], 'fR_state_sd': 0.2, 'fR_state_raw': init["logit_fR"]["state"] / 0.2, 'fR_season_sd': 0.2, 'fR_season_raw': init["logit_fR"]["season"] / 0.2,
+                'logit_phi_global_mean': 0.75, 'logit_kappa_global_mean': 0.75}]
 
         print('\nparameter hierarchy reconstruction\n')
 
@@ -350,20 +359,31 @@ def run_training():
         print('\nstarting the sampler..\n')
 
         with model:
+            # get last sample from previous run to start from
+            if cont_sampling:
+                trace_path = os.path.join(abs_dir, f'../../data/interim/calibration/training/{training_name}/cluster_{cluster_idx}/trace.nc')
+                prev_trace = arviz.from_netcdf(trace_path)
+                initvals = trace_to_initvals(prev_trace, [rv.name for rv in model.free_RVs])
             # set step size directly
             # for US: step_scale: 0.002 + max_treedepth 12, For U.S. census regions: step_scale: 0.005 + max_treedepth 10
             step = pm.NUTS(step_scale=0.002, target_accept=0.8, max_treedepth=12)   
             # run sampler without tuning
             trace = pm.sample(n_sample, tune=0, chains=n_chains, progressbar=True,
-                            cores=n_chains, init='adapt_diag', step = step,
-                            mp_ctx=mp.get_context("spawn"),
-                                initvals=n_chains*[{'alpha_inv': 0.05 * pt.ones(n_states), 'delta_beta_raw': init["delta_beta_mu"] / 0.25,
-                                        'log_rho_global_mean': init["log_rho"]["global"], 'rho_state_sd': 0.2, 'rho_state_raw': init["log_rho"]["state"] / 0.2, 'rho_season_sd': 0.2, 'rho_season_raw': init["log_rho"]["season"] / 0.2,
-                                        'log_fI_global_mean': init["log_fI"]["global"], 'fI_state_sd': 0.2, 'fI_state_raw': init["log_fI"]["state"] / 0.2, 'fI_season_sd': 0.2, 'fI_season_raw': init["log_fI"]["season"] / 0.2,
-                                        'logit_fR_global_mean': init["logit_fR"]["global"], 'fR_state_sd': 0.2, 'fR_state_raw': init["logit_fR"]["state"] / 0.2, 'fR_season_sd': 0.2, 'fR_season_raw': init["logit_fR"]["season"] / 0.2,
-                                        'logit_phi_global_mean': 0.75, 'logit_kappa_global_mean': 0.75}])
+                            cores=1, init='adapt_diag', step = step,
+                            mp_ctx=mp.get_context("spawn"), initvals=initvals)
         
         print('\n..finished sampling\n')
+        print('\nsaving traces\n')
+
+        if not cont_sampling:
+            trace.to_netcdf(os.path.join(output_folder, f"trace.nc"))
+        else:
+            combined_trace = concat_traces(prev_trace, trace)
+            tmp_path = trace_path + ".tmp"
+            combined_trace.to_netcdf(tmp_path)
+            os.replace(tmp_path, trace_path)
+            trace = combined_trace
+
         print('\ngenerating diagnostic plots\n')
 
         # manual burn
@@ -396,8 +416,7 @@ def run_training():
         with model:
             posterior_predictive = pm.sample_posterior_predictive(trace)
 
-        # Save traces and posterior predictive
-        trace.to_netcdf(os.path.join(output_folder,"trace.nc"))
+        # Save posterior predictive
         posterior_predictive.to_netcdf(os.path.join(output_folder,"posterior_predictive.nc"))
 
         # Visualisations
