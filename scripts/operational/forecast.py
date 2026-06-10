@@ -56,10 +56,8 @@ def run_forecast():
     n_preoptim = 1000
     n_sample = 100
     n_tune = 100
-    n_chains = 8
+    n_chains = 4
     sigma_grw = 0.01
-
-    #TODO: incremental forecasting
 
     # derived products
     ## convert to a list of start and enddates (datetime)
