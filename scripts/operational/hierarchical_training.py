@@ -53,8 +53,8 @@ def run_training():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 250
-    n_burn = 150
+    n_sample = 10
+    n_burn = 0
     training_name = 'exclude_None-wGARCH'
     n_preoptim = 1000
     ## use previous sampling
@@ -365,11 +365,11 @@ def run_training():
                 prev_trace = arviz.from_netcdf(trace_path)
                 initvals = trace_to_initvals(prev_trace, [rv.name for rv in model.free_RVs])
             # set step size directly
-            # for US: step_scale: 0.002 + max_treedepth 12, For U.S. census regions: step_scale: 0.005 + max_treedepth 10
-            step = pm.NUTS(step_scale=0.002, target_accept=0.8, max_treedepth=12)   
+            # for US as a whole: step_scale: 0.002 + max_treedepth 12, For U.S. census regions clusters: step_scale: 0.005 + max_treedepth 10
+            step = pm.NUTS(step_scale=0.002, target_accept=0.8, max_treedepth=12)       
             # run sampler without tuning
             trace = pm.sample(n_sample, tune=0, chains=n_chains, progressbar=True,
-                            cores=1, init='adapt_diag', step = step,
+                            cores=n_chains, init='adapt_diag', step = step,
                             mp_ctx=mp.get_context("spawn"), initvals=initvals)
         
         print('\n..finished sampling\n')
