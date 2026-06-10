@@ -48,7 +48,7 @@ def run_forecast():
     ## training metadata
     start_calibration_month = 10
     training_name = 'exclude_None-wGARCH'
-    training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/training/{training_name}')
+    training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     ## forecasting settings
     seasons = ['2025-2026',]        # script only works with one season
     n_observations = 25             # use all data available in the forecast season
@@ -56,10 +56,8 @@ def run_forecast():
     n_preoptim = 1000
     n_sample = 100
     n_tune = 100
-    n_chains = 8
+    n_chains = 4
     sigma_grw = 0.01
-
-    #TODO: incremental forecasting
 
     # derived products
     ## convert to a list of start and enddates (datetime)
