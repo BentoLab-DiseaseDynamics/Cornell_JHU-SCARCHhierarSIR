@@ -109,7 +109,7 @@ def run_forecast():
         reference_date = dt[-1][-1] + timedelta(weeks=1) - timedelta(weeks=forecast_horizon)    # compute true reference date based on data instead of filename
 
         # output folder name
-        output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/forecasting/{training_name}/reference_date-{reference_date.strftime('%Y-%m-%d')}/cluster_{cluster_idx}/')
+        output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/forecast/{training_name}/reference_date-{reference_date.strftime('%Y-%m-%d')}/cluster_{cluster_idx}/')
 
         # Get the hyperparameters
         # ~~~~~~~~~~~~~~~~~~~~~~~
@@ -438,7 +438,7 @@ def run_forecast():
 
     # concatenate all forecasts and save them
     output = pd.concat(forecasts, axis=0)
-    output.to_csv(os.path.join(output_folder,'..',reference_date.strftime('%Y-%m-%d')+'-JHU_Cornell'+'-'+f'{model_name}.csv'))
+    output.to_csv(os.path.join(output_folder,'../..',reference_date.strftime('%Y-%m-%d')+'-JHU_Cornell'+'-'+f'{model_name}.csv'))
 
     print(f'\nforecasting complete!\n')
 

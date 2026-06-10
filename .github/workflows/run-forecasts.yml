@@ -1,0 +1,97 @@
+name: Run forecasts
+
+on:
+  workflow_call:          # As a child process of forecast_pipeline.yml
+  workflow_dispatch:      # Allows manual triggering
+
+permissions:
+  contents: write         # Allows the use of GITHUB_TOKEN for pushing commits
+  pull-requests: write    # Allows the use of GITHUB_TOKEN for creating and merging PRs
+
+jobs:
+
+  run_forecasts:
+
+    runs-on: self-hosted
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0 # (default: 1 ---> fetches only tip of main from the default origin at workflow start time ---> previous job added a new tip) 
+
+      - name: Pull latest main
+        shell: bash
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Download and set up the BENTOLAB-SCARCH_HIERARSIR anaconda environment
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          activate-environment: BENTOLAB-SCARCH_HIERARSIR
+          environment-file: SCARCHhierarSIR_env.yml
+
+      - name: Install model in the BENTOLAB-SCARCH_HIERARSIR anaconda environment
+        shell: bash -l {0}
+        run: |
+          conda activate BENTOLAB-SCARCH_HIERARSIR
+          python -m pip install --upgrade pip
+          pip install -e . --force-reinstall
+
+      - name: Compute forecasts 
+        shell: bash -l {0}
+        run: |
+          conda activate BENTOLAB-SCARCH_HIERARSIR
+          python scripts/operational/forecast.py
+      
+      - name: Commit changes to a new feature branch
+        shell: bash -l {0}
+        run: |
+
+          # generate timestamped branch name and store as environmental variable
+          BRANCH_NAME="forecast-$(date +'%Y%m%d%H%M%S')"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+          # configure git
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$BRANCH_NAME"
+          
+          # stage ONLY the data file
+          git add -A
+          git commit -m "SCARCHhierarSIR forecast made on $(date +'%Y-%m-%d %H:%M:%S')"
+
+          # push changes
+          git push origin "$BRANCH_NAME"
+
+      - name: Create a pull request
+        shell: bash -l {0}
+        run: |
+          sudo apt install gh
+          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+          gh pr create --base main --head ${{ env.BRANCH_NAME }} --title "[Automated] CDC FluSight Forecast with SCARCHhierarSIR" --body "This PR includes the latest CDC FluSight forecast with SCARCHhierarSIR."  
+      
+      # merge and delete were split on 01-04-2026 
+      - name: Merge pull request
+        shell: bash -l {0}
+        run: |
+          gh pr merge --squash
+      
+      # deletion failure after 5 retries won't stop the pipeline
+      - name: Delete branch
+        shell: bash -l {0}
+        run: |
+          for i in {1..5}; do
+            echo "Attempt $i to delete branch..."
+
+            if gh api -X DELETE repos/${{ github.repository }}/git/refs/heads/${{ env.BRANCH_NAME }}; then
+              echo "Branch deleted"
+              break
+            fi
+
+            echo "Delete failed, retrying in 10 seconds..."
+            sleep 10
+          done
