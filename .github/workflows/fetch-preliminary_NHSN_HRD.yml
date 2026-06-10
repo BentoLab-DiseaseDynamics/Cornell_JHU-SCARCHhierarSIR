@@ -1,0 +1,82 @@
+name: Fetch preliminary NHSN HRD dataset
+
+on:
+  workflow_call:          # As a child process of forecast_pipeline.yml
+  workflow_dispatch:      # Allows manual triggering
+
+permissions:
+  contents: write         # Grants permission to push changes
+  pull-requests: write    # Grants permission to create PRs
+
+jobs:
+  fetch_data:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up conda environment
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          activate-environment: BENTOLAB-SCARCH_HIERARSIR
+          environment-file: SCARCHhierarSIR_env.yml  
+
+      - name: Fetch NHSN HRD preliminary data (with retries and sleep)
+        shell: bash -l {0}
+        env:
+          MAX_RETRIES: 18
+          WAIT_SECONDS: 900
+        run: |
+          chmod +x .github/workflows/fetch_nhsn_hrd_preliminary_with_retry.sh
+          ./.github/workflows/fetch_nhsn_hrd_preliminary_with_retry.sh
+
+      - name: Commit changes to a new feature branch
+        shell: bash -l {0}
+        run: |
+
+          # generate timestamped branch name and store as environmental variable
+          BRANCH_NAME="preliminary-data-update-$(date +'%Y%m%d%H%M%S')"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+          # configure git
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$BRANCH_NAME"
+          
+          # stage ONLY the data file
+          git add -A
+          git commit -m "NHSN HRD preliminary data update on $(date +'%Y-%m-%d %H:%M:%S')"
+
+          # push changes
+          git push origin "$BRANCH_NAME"
+
+      - name: Create a pull request
+        shell: bash -l {0}
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+          gh pr create --base main --head ${{ env.BRANCH_NAME }} --title "Automated NHSN HRD Preliminary Data Update" --body "This PR includes the latest update of the preliminary NHSN HRD data."
+      
+      # merge and delete were split on 01-04-2026 
+      - name: Merge pull request
+        shell: bash -l {0}
+        run: |
+          gh pr merge --squash
+      
+      # deletion failure after 5 retries won't stop the pipeline
+      - name: Delete branch
+        shell: bash -l {0}
+        run: |
+          for i in {1..5}; do
+            echo "Attempt $i to delete branch..."
+
+            if gh api -X DELETE repos/${{ github.repository }}/git/refs/heads/${{ env.BRANCH_NAME }}; then
+              echo "Branch deleted"
+              break
+            fi
+
+            echo "Delete failed, retrying in 10 seconds..."
+            sleep 10
+          done
+
