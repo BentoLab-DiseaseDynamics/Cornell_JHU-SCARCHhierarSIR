@@ -361,7 +361,7 @@ def run_training():
         with model:
             # get last sample from previous run to start from
             if cont_sampling:
-                trace_path = os.path.join(abs_dir, f'../../data/interim/calibration/training/{training_name}/cluster_{cluster_idx}/trace.nc')
+                trace_path = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}/cluster_{cluster_idx}/trace.nc')
                 prev_trace = arviz.from_netcdf(trace_path)
                 initvals = trace_to_initvals(prev_trace, [rv.name for rv in model.free_RVs])
             # set step size directly
