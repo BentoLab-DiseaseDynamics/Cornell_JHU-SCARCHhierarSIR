@@ -48,7 +48,7 @@ def run_forecast():
     ## training metadata
     start_calibration_month = 10
     training_name = 'exclude_None-wGARCH'
-    training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/training/{training_name}')
+    training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     ## forecasting settings
     seasons = ['2025-2026',]        # script only works with one season
     n_observations = 25             # use all data available in the forecast season

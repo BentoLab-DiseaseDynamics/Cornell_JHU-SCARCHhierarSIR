@@ -86,7 +86,7 @@ def run_training():
 
         print(f'states in cluster: {clusters[clusters[clustering_name] == cluster_idx]['abbreviation_state'].values.tolist()}\n')
 
-        output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/training/{training_name}/cluster_{cluster_idx}')
+        output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}/cluster_{cluster_idx}')
 
         # Get US demographics
         # ~~~~~~~~~~~~~~~~~~~
