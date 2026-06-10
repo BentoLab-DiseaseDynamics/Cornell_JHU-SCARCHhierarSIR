@@ -165,7 +165,6 @@ dmypy.json
 *.out
 *.app
 
-
 ## Latex files
 *.aux
 *.log
@@ -175,3 +174,4 @@ dmypy.json
 
 ## Calibration data
 data/interim/calibration/training/exclude_None-wGARCH/cluster_*
+data/interim/calibration/forecast/exclude_None-wGARCH/reference_date-*
