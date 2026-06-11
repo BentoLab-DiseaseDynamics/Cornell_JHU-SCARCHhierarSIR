@@ -337,7 +337,7 @@ def run_training():
             z = pm.Deterministic("z", pt.concatenate([z_0[None, ...], z_seq], axis=0))  # prepend initial condition
             sigma2 = pm.Deterministic("sigma2", pt.concatenate([sigma2_0[None, ...], sigma2_seq], axis=0))
             eps = pm.Deterministic("eps", pt.concatenate([eps_0[None, ...], eps_seq], axis=0))
-            delta_beta = pm.Deterministic("delta_beta", z_seq + delta_beta_state_mean[:, None, :])
+            delta_beta = pm.Deterministic("delta_beta", z + delta_beta_state_mean[:, None, :])
 
             # concatenate parameters along the last axis
             args_diff = pt.concatenate(
