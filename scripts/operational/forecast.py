@@ -53,9 +53,9 @@ def run_forecast():
     seasons = ['2025-2026',]        # script only works with one season
     n_observations = 25             # use all data available in the forecast season
     forecast_horizon = 4            # forecast 4 weeks ahead
-    n_preoptim = 1000
-    n_sample = 100
-    n_tune = 100
+    n_preoptim = 400
+    n_sample = 2
+    n_tune = 2
     n_chains = 4
     sigma_grw = 0.01
 
