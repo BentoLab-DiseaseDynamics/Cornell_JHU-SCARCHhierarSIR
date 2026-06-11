@@ -56,7 +56,7 @@ def run_forecast():
     n_preoptim = 400
     n_sample = 2
     n_tune = 2
-    n_chains = 4
+    n_chains = 2
     sigma_grw = 0.01
 
     # derived products
