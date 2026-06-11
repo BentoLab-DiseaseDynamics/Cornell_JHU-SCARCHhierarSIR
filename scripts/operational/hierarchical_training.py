@@ -48,17 +48,17 @@ def run_training():
     ## clustering
     clustering_name = 'all'
     ## temporal extent of training
-    n_observations = 33
+    n_observations = 35
     start_calibration_month = 10
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 10
+    n_sample = 20
     n_burn = 0
-    training_name = 'exclude_None-wGARCH'
+    training_name = 'exclude_None-wGARCH_altSigma2_0'
     n_preoptim = 1000
     ## use previous sampling
-    cont_sampling = True   # To continue sampling, the number of chains and the observed data must match!
+    cont_sampling = False   # To continue sampling, the number of chains and the observed data must match!
 
     # derived products
     ## convert to a list of start and enddates (datetime)
@@ -297,7 +297,7 @@ def run_training():
             phi = pm.Deterministic("phi", pm.math.sigmoid(logit_phi_global_mean + phi_state_sd * phi_state_raw[None, :] + phi_season_sd * phi_season_raw[:, None]))
 
             # sample iid standard normals as shocks
-            eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, dims=("modifier","season","state"))
+            eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, shape=(n_modifiers-1, n_seasons, n_states))
             # correlate them across space using the precision matrix
             eta = pm.Deterministic("eta", pt.einsum("ij,tsj->tsi", L_cov_shocks, eta_raw))
 
@@ -334,10 +334,10 @@ def run_training():
             )
 
             # Register deterministic variables to inspect later
+            z = pm.Deterministic("z", pt.concatenate([z_0[None, ...], z_seq], axis=0))  # prepend initial condition
+            sigma2 = pm.Deterministic("sigma2", pt.concatenate([sigma2_0[None, ...], sigma2_seq], axis=0))
+            eps = pm.Deterministic("eps", pt.concatenate([eps_0[None, ...], eps_seq], axis=0))
             delta_beta = pm.Deterministic("delta_beta", z_seq + delta_beta_state_mean[:, None, :])
-            z = pm.Deterministic("z", z_seq)
-            sigma2 = pm.Deterministic("sigma2", sigma2_seq)
-            eps = pm.Deterministic("eps", eps_seq)
 
             # concatenate parameters along the last axis
             args_diff = pt.concatenate(
