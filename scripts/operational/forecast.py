@@ -279,7 +279,7 @@ def run_forecast():
             phi_season_raw = pm.Normal("phi_season_raw", 0, 1, dims="season")
             phi = pm.Deterministic("phi", pt.squeeze(pm.math.sigmoid(pm.math.logit(phi_global_mean) + pt.log(phi_state)[None, :] + phi_season_sd * phi_season_raw[:, None])[0,:]))
             # sample iid standard normals as shocks
-            eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, dims=("modifier","state"))
+            eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, shape=(n_modifiers-1, n_states))
             # correlate them across space using the precision matrix 
             eta = pm.Deterministic("eta", pt.einsum("ij,mj->mi", L_cov_shocks, eta_raw))    # shape: (modifier x state)
 
@@ -306,10 +306,10 @@ def run_forecast():
             )
 
             # Register deterministic variables to inspect later
-            delta_beta = pm.Deterministic("delta_beta", delta_beta_state_mean + z_seq)
-            z = pm.Deterministic("z", z_seq)
-            sigma2 = pm.Deterministic("sigma2", sigma2_seq)
-            eps = pm.Deterministic("eps", eps_seq)
+            z = pm.Deterministic("z", pt.concatenate([z_0[None, ...], z_seq], axis=0))  # prepend initial condition
+            sigma2 = pm.Deterministic("sigma2", pt.concatenate([sigma2_0[None, ...], sigma2_seq], axis=0))
+            eps = pm.Deterministic("eps", pt.concatenate([eps_0[None, ...], eps_seq], axis=0))
+            delta_beta = pm.Deterministic("delta_beta", z + delta_beta_state_mean)
 
             # concatenate parameters along last axis (n_seasons, n_states, n_parameters)
             args_diff = pt.concatenate(
