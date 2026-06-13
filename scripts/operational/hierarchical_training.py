@@ -53,9 +53,9 @@ def run_training():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 20
+    n_sample = 50
     n_burn = 0
-    training_name = 'exclude_None-wGARCH_altSigma2_0'
+    training_name = 'exclude_None-wGARCH_altSigma2_0_trial2'
     n_preoptim = 1000
     ## use previous sampling
     cont_sampling = False   # To continue sampling, the number of chains and the observed data must match!
@@ -319,10 +319,11 @@ def run_training():
             nu = pm.Beta("nu", 5, 1)                                                                  
             a_garch = pm.Deterministic("a_garch", kappa * nu)                                                          
             b_garch = pm.Deterministic("b_garch", kappa * (1 - nu))
-            # Steady state noise
-            omega = pm.LogNormal("omega", mu=pt.log(0.01/3), sigma=1/5)    
-            # Initial noise                         
-            sigma2_0 = pm.Deterministic("sigma2_0", omega/(1-kappa), dims=("season","state"))
+            # Assume sigma2_0 is equal to the expected GARCH(1,1) variance E[sigma2] = omega / (1-kappa)
+            sigma2_0 = pm.LogNormal("sigma2_0", mu=pt.log(0.01/3), sigma=1/5)
+            sigma2_0 = sigma2_0 * pt.ones([n_seasons, n_states])
+            # Compute steady state noise based on variance equation
+            omega = pm.Deterministic("omega", sigma2_0 * (1 - kappa), dims=("season","state"))    
 
             # Run AR-GARCH scan over T steps
             z_seq, sigma2_seq, eps_seq = pytensor.scan(
@@ -597,7 +598,7 @@ def run_training():
             "phi_season_sd",
             "kappa_global_mean",
             "kappa_season_sd",
-            "omega",
+            "sigma2_0",
             "nu",
         ]
         for p in scalar_params:
