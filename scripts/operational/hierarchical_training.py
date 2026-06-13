@@ -301,29 +301,27 @@ def run_training():
             # correlate them across space using the precision matrix
             eta = pm.Deterministic("eta", pt.einsum("ij,tsj->tsi", L_cov_shocks, eta_raw))
 
-            # --- GARCH(1,1) parameters ---                                                                             
-            # Total noise persistence
-            ## global
-            logit_kappa_global_mean = pm.Normal("logit_kappa_global_mean", mu=0, sigma=1)
-            kappa_global_mean = pm.Deterministic("kappa_global_mean", pm.math.sigmoid(logit_kappa_global_mean))
-            ## state
-            kappa_state_sd = pm.HalfNormal("kappa_state_sd", sigma=1/5)
-            kappa_state_raw = pm.Normal("kappa_state_raw", 0, 1, dims="state")
-            kappa_state = pm.Deterministic("kappa_state", pt.exp(kappa_state_sd * kappa_state_raw), dims="state")
+            # --- GARCH(1,0) = ARCH(1) parameters ---    
+            ## baseline noise
+            ### global
+            log_omega_global_mean = pm.Normal("log_omega_global_mean", mu=pt.log(0.02/3), sigma=1/3)    
+            omega_global_mean = pm.Deterministic("omega_global_mean", pt.exp(log_omega_global_mean))
+            ### state
+            omega_state_sd = pm.HalfNormal("omega_state_sd", sigma=1/5)      
+            omega_state_raw = pm.Normal("omega_state_raw", 0, 1, dims="state")
+            omega_state = pm.Deterministic("omega_state", pt.exp(omega_state_sd * omega_state_raw), dims="state")
             ### season
-            kappa_season_sd = pm.HalfNormal("kappa_season_sd", sigma=1/5)
-            kappa_season_raw = pm.Normal("kappa_season_raw", 0, 1, dims="season")
-            kappa_season = pm.Deterministic("kappa_season", pt.exp(kappa_season_sd * kappa_season_raw), dims="season")
-            kappa = pm.Deterministic("kappa", pm.math.sigmoid(logit_kappa_global_mean + kappa_state_sd * kappa_state_raw[None, :] + kappa_season_sd * kappa_season_raw[:, None]))
-            ## Split between a and b                                                   
-            nu = pm.Beta("nu", 5, 1)                                                                  
-            a_garch = pm.Deterministic("a_garch", kappa * nu)                                                          
-            b_garch = pm.Deterministic("b_garch", kappa * (1 - nu))
+            omega_season_sd = pm.HalfNormal("omega_season_sd", sigma=1/5)
+            omega_season_raw = pm.Normal("omega_season_raw", 0, 1, dims="season")
+            omega_season = pm.Deterministic("omega_season", pt.exp(omega_season_sd * omega_season_raw), dims="season")
+            log_omega = log_omega_global_mean + omega_state_sd * omega_state_raw[None, :] + omega_season_sd * omega_season_raw[:, None]
+            omega = pm.Deterministic("omega", pt.exp(log_omega))                                              
+            ## alpha and beta
+            logit_a_garch = pm.Normal("logit_a_garch", mu=0, sigma=1)
+            a_garch = pm.Deterministic("a_garch", pm.math.sigmoid(logit_a_garch))
+            b_garch = pm.Deterministic("b_garch", pt.as_tensor_variable(0.0))
             # Initial noise   
-            sigma2_0 = pm.LogNormal("sigma2_0", mu=pt.log(0.01/3), sigma=1/5)    
-            sigma2_0 = sigma2_0 * pt.ones([n_seasons,n_states])
-            # Baseline noise                        
-            omega = pm.Deterministic("omega", 0.0)
+            sigma2_0 = pm.Deterministic("sigma2_0", omega, dims=("state", "season"))
 
             # Run AR-GARCH scan over T steps
             z_seq, sigma2_seq, eps_seq = pytensor.scan(
@@ -399,7 +397,7 @@ def run_training():
                         'delta_beta_state_mean',                                                                # delta_beta_mu
                         'psi_2', 'psi_1',                                                                       # spatial correlation strength
                         'phi_global_mean', 'phi_state_sd', 'phi_season_sd', 'phi',                              # AR 
-                        'kappa_global_mean', 'kappa_state_sd', 'kappa_season_sd', 'kappa', 'omega', 'nu',       # GARCH parameters
+                        'omega_global_mean', 'omega_state_sd', 'omega_season_sd', 'omega',                      # GARCH(1,0) parameters
                         'a_garch', 'b_garch', 'sigma2_0',
                         ]
 
@@ -488,12 +486,12 @@ def run_training():
 
 
         # visualise forest plots of state and season effect sizes
-        labels_params = [r'$\rho$', r'$f_I$', r'$f_R$', r'$\phi$', r'$\kappa$']
-        state_params = ["rho_state", "fI_state", "fR_state", "phi_state", "kappa_state"]
-        season_params = ["rho_season", "fI_season", "fR_season", "phi_season", "kappa_season"]
-        global_params = ["rho_global_mean", "fI_global_mean", "fR_global_mean", "phi_global_mean", "kappa_global_mean"]
-        params = ['rho', 'fI', 'fR', 'phi', 'kappa']
-        effect_type = ['Multiplicative', 'Multiplicative', 'Odds-ratio', 'Odds-ratio', 'Odds-ratio']
+        labels_params = [r'$\rho$', r'$f_I$', r'$f_R$', r'$\phi$', r'$\omega$']
+        state_params = ["rho_state", "fI_state", "fR_state", "phi_state", "omega_state"]
+        season_params = ["rho_season", "fI_season", "fR_season", "phi_season", "omega_season"]
+        global_params = ["rho_global_mean", "fI_global_mean", "fR_global_mean", "phi_global_mean", "omega_global_mean"]
+        params = ['rho', 'fI', 'fR', 'phi', 'omega']
+        effect_type = ['Multiplicative', 'Multiplicative', 'Odds-ratio', 'Odds-ratio', 'Multiplicative']
 
         for n, p_state, p_season, g, p, e in zip(labels_params, state_params, season_params, global_params, params, effect_type):
 
@@ -596,10 +594,10 @@ def run_training():
             "psi_2",
             "phi_global_mean",
             "phi_season_sd",
-            "kappa_global_mean",
-            "kappa_season_sd",
-            "sigma2_0",
-            "nu",
+            "omega_global_mean",
+            "omega_season_sd",
+            "a_garch",
+            "b_garch"
         ]
         for p in scalar_params:
             df[p] = float(med[p].values)
@@ -611,7 +609,7 @@ def run_training():
             "fI_state",
             "fR_state",
             "phi_state",
-            "kappa_state",
+            "omega_state",
         ]
         for p in state_params:
             df[p] = med[p].values
