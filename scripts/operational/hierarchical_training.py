@@ -53,7 +53,7 @@ def run_training():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 60
+    n_sample = 15
     n_burn = 0
     training_name = 'exclude_None-wGARCH_altSigma2_0_trial3'
     n_preoptim = 1000
@@ -225,7 +225,7 @@ def run_training():
             rho_season_raw = pm.Normal("rho_season_raw", 0, 1, dims="season")
             rho_season = pm.Deterministic("rho_season", pt.exp(rho_season_sd * rho_season_raw), dims="season")
             log_rho = log_rho_global_mean + rho_state_sd * rho_state_raw[None, :] + rho_season_sd * rho_season_raw[:, None]
-            rho = pm.Deterministic("rho", pt.exp(log_rho))
+            rho = pm.Deterministic("rho", pt.exp(log_rho), dims=("season", "state"))
 
             ## initial infected: fI
             ### global
@@ -240,7 +240,7 @@ def run_training():
             fI_season_raw = pm.Normal("fI_season_raw", 0, 1, dims="season")
             fI_season = pm.Deterministic("fI_season", pt.exp(fI_season_sd * fI_season_raw), dims="season")
             log_fI = log_fI_global_mean + fI_state_sd * fI_state_raw[None, :] + fI_season_sd * fI_season_raw[:, None]
-            fI = pm.Deterministic("fI", pt.exp(log_fI))
+            fI = pm.Deterministic("fI", pt.exp(log_fI), dims=("season", "state"))
 
             ## initial recovered: fR
             ### global
@@ -255,7 +255,7 @@ def run_training():
             fR_season_raw = pm.Normal("fR_season_raw", 0, 1, dims="season")
             fR_season = pm.Deterministic("fR_season", pt.exp(fR_season_sd * fR_season_raw), dims="season")
             logit_fR = logit_fR_global_mean + fR_state_sd * fR_state_raw[None, :] + fR_season_sd * fR_season_raw[:, None]
-            fR = pm.Deterministic("fR", pm.math.sigmoid(logit_fR))
+            fR = pm.Deterministic("fR", pm.math.sigmoid(logit_fR), dims=("season", "state"))
 
             # ------- AR-GARCH modifiers -----------
 
@@ -294,7 +294,9 @@ def run_training():
             phi_season_sd = pm.HalfNormal("phi_season_sd", sigma=1/5)
             phi_season_raw = pm.Normal("phi_season_raw", 0, 1, dims="season")
             phi_season = pm.Deterministic("phi_season", pt.exp(phi_season_sd * phi_season_raw), dims="season")
-            phi = pm.Deterministic("phi", pm.math.sigmoid(logit_phi_global_mean + phi_state_sd * phi_state_raw[None, :] + phi_season_sd * phi_season_raw[:, None]))
+            phi = pm.Deterministic("phi",
+                                   pm.math.sigmoid(logit_phi_global_mean + phi_state_sd * phi_state_raw[None, :] + phi_season_sd * phi_season_raw[:, None]),
+                                   dims=("season", "state"))
 
             # sample iid standard normals as shocks
             eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, shape=(n_modifiers-1, n_seasons, n_states))
@@ -304,7 +306,7 @@ def run_training():
             # --- GARCH(1,0) = ARCH(1) parameters ---    
             ## baseline noise
             ### global
-            log_omega_global_mean = pm.Normal("log_omega_global_mean", mu=pt.log(0.02/3), sigma=1/3)    
+            log_omega_global_mean = pm.Normal("log_omega_global_mean", mu=pt.log(0.01/3), sigma=1/5)    
             omega_global_mean = pm.Deterministic("omega_global_mean", pt.exp(log_omega_global_mean))
             ### state
             omega_state_sd = pm.HalfNormal("omega_state_sd", sigma=1/5)      
@@ -315,13 +317,13 @@ def run_training():
             omega_season_raw = pm.Normal("omega_season_raw", 0, 1, dims="season")
             omega_season = pm.Deterministic("omega_season", pt.exp(omega_season_sd * omega_season_raw), dims="season")
             log_omega = log_omega_global_mean + omega_state_sd * omega_state_raw[None, :] + omega_season_sd * omega_season_raw[:, None]
-            omega = pm.Deterministic("omega", pt.exp(log_omega))                                              
+            omega = pm.Deterministic("omega", pt.exp(log_omega), dims=("season", "state")) 
             ## alpha and beta
             logit_a_garch = pm.Normal("logit_a_garch", mu=0, sigma=1)
             a_garch = pm.Deterministic("a_garch", pm.math.sigmoid(logit_a_garch))
             b_garch = pm.Deterministic("b_garch", pt.as_tensor_variable(0.0))
             # Initial noise   
-            sigma2_0 = pm.Deterministic("sigma2_0", omega, dims=("state", "season"))
+            sigma2_0 = pm.Deterministic("sigma2_0", omega, dims=("season", "state"))
 
             # Run AR-GARCH scan over T steps
             z_seq, sigma2_seq, eps_seq = pytensor.scan(
@@ -397,7 +399,7 @@ def run_training():
                         'delta_beta_state_mean',                                                                # delta_beta_mu
                         'psi_2', 'psi_1',                                                                       # spatial correlation strength
                         'phi_global_mean', 'phi_state_sd', 'phi_season_sd', 'phi',                              # AR 
-                        'omega_global_mean', 'omega_state_sd', 'omega_season_sd', 'omega',                      # GARCH(1,0) parameters
+                        'omega_global_mean', 'omega_state_sd', 'omega_state', 'omega_season_sd', 'omega_season', 'omega', # GARCH(1,0) parameters
                         'a_garch', 'b_garch', 'sigma2_0',
                         ]
 
