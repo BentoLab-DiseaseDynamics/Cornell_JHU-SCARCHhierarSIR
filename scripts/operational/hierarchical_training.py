@@ -53,12 +53,12 @@ def run_training():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 15
+    n_sample = 35
     n_burn = 0
     training_name = 'exclude_None-wGARCH_altSigma2_0_trial3'
     n_preoptim = 1000
     ## use previous sampling
-    cont_sampling = False   # To continue sampling, the number of chains and the observed data must match!
+    cont_sampling = True   # To continue sampling, the number of chains and the observed data must match!
 
     # derived products
     ## convert to a list of start and enddates (datetime)
