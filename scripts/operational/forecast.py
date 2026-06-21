@@ -10,6 +10,7 @@ Licensed under CC BY-NC-SA 4.0
 
 # standard python libraries
 import os
+import json
 import numpy as np
 import pandas as pd
 import multiprocessing as mp
@@ -37,17 +38,7 @@ def run_forecast():
     abs_dir = os.path.dirname(__file__)
 
     # global parameters go here
-    ## model-structural
-    gamma = 1/3.5
-    n_modifiers = 27
-    modifier_length = 7
-    start_simulation = -30
-    modifier_ref_month = 11
-    modifier_ref_day = 1
-    ## clustering
-    clustering_name = 'all'
     ## training metadata
-    start_calibration_month = 10
     training_name = 'exclude_None-wGARCH'
     training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     ## forecasting settings
@@ -59,6 +50,20 @@ def run_forecast():
     n_tune = 100
     n_chains = 4
     sigma_grw = 0.01
+
+    ## load the model-structural parameters and training metadata
+    with open(os.path.join(training_folder, "model_config.json"), "r") as f:
+        params = json.load(f)
+
+    b_garch = params["b_garch"]
+    gamma = params["gamma"]
+    n_modifiers = params["n_modifiers"]
+    modifier_length = params["modifier_length"]
+    start_simulation = params["start_simulation"]
+    modifier_ref_month = params["modifier_ref_month"]
+    modifier_ref_day = params["modifier_ref_day"]
+    clustering_name = params["clustering_name"]
+    start_calibration_month = params["clustering_name"]
 
     # derived products
     ## convert to a list of start and enddates (datetime)

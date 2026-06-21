@@ -11,6 +11,7 @@ Licensed under CC BY-NC-SA 4.0
 
 # standard python libraries
 import os
+import json
 import numpy as np
 import pandas as pd
 import multiprocessing as mp
@@ -47,20 +48,28 @@ def run_training():
     start_simulation = -30 # (October 1)
     modifier_ref_month = 11
     modifier_ref_day = 1
-    ## clustering
     clustering_name = 'all'
     ## temporal extent of training
-    n_observations = 35 # start of June
-    start_calibration_month = 10
+    start_calibration_month = 10    # determines simulation start (1st day of month)
+    n_observations = 35             # run until start of June
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 50
-    n_burn = 5
+    n_sample = 1
+    n_burn = 0
     training_name = 'exclude_None-wGARCH'
     n_preoptim = 1000
     ## use previous sampling
     cont_sampling = False   # To continue sampling, the number of chains and the observed data must match!
+
+    ## save model-structural parameters and training metadata
+    output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
+    os.makedirs(output_folder, exist_ok=True)
+    params = {"b_garch": b_garch, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "modifier_length": modifier_length, "start_simulation": start_simulation,
+              "modifier_ref_month": modifier_ref_month, "modifier_ref_day": modifier_ref_day, 'clustering_name': clustering_name, "start_calibration_month": start_calibration_month,
+               "observations": n_observations, 'seasons': seasons}
+    with open(os.path.join(output_folder, "model_config.json"), "w") as f:
+        json.dump(params, f, indent=4)
 
     # derived products
     ## convert to a list of start and enddates (datetime)
@@ -88,7 +97,7 @@ def run_training():
 
         print(f'states in cluster: {clusters[clusters[clustering_name] == cluster_idx]['abbreviation_state'].values.tolist()}\n')
 
-        output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}/cluster_{cluster_idx}')
+        output_folder = os.path.join(output_folder, 'cluster_{cluster_idx}')
 
         # Get US demographics
         # ~~~~~~~~~~~~~~~~~~~
