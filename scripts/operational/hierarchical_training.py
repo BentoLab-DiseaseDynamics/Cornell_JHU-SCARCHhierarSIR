@@ -55,7 +55,7 @@ def run_training():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 1
+    n_sample = 100
     n_burn = 0
     training_name = 'exclude_None-wGARCH'
     n_preoptim = 1000
@@ -378,7 +378,7 @@ def run_training():
                 initvals = trace_to_initvals(prev_trace, [rv.name for rv in model.free_RVs])
             # set step size directly
             # for US as a whole: step_scale: 0.00175 + max_treedepth 13, For U.S. census regions clusters: step_scale: 0.005 + max_treedepth 10
-            step = pm.NUTS(step_scale=0.00175, target_accept=0.8, max_treedepth=13)       
+            step = pm.NUTS(step_scale=0.00175, target_accept=0.8, max_treedepth=12)       
             # run sampler without tuning
             trace = pm.sample(n_sample, tune=0, chains=n_chains, progressbar=True,
                             cores=n_chains, init='adapt_diag', step = step,
