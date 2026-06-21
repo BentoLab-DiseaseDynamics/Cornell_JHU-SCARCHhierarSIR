@@ -40,7 +40,7 @@ def run_training():
 
     # global parameters go here
     ## model-structural
-    use_garch = True
+    b_garch = 0.0
     gamma = 1/3.5
     n_modifiers = 26
     modifier_length = 7
@@ -48,17 +48,17 @@ def run_training():
     ## clustering
     clustering_name = 'all'
     ## temporal extent of training
-    n_observations = 35
+    n_observations = 35 # start of June
     start_calibration_month = 10
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 35
+    n_sample = 50
     n_burn = 0
-    training_name = 'exclude_None-wGARCH_altSigma2_0_trial3'
+    training_name = 'exclude_None-wGARCH'
     n_preoptim = 1000
     ## use previous sampling
-    cont_sampling = True   # To continue sampling, the number of chains and the observed data must match!
+    cont_sampling = False   # To continue sampling, the number of chains and the observed data must match!
 
     # derived products
     ## convert to a list of start and enddates (datetime)
@@ -306,7 +306,7 @@ def run_training():
             # --- GARCH(1,0) = ARCH(1) parameters ---    
             ## baseline noise
             ### global
-            log_omega_global_mean = pm.Normal("log_omega_global_mean", mu=pt.log(0.01/3), sigma=1/5)    
+            log_omega_global_mean = pm.Normal("log_omega_global_mean", mu=pt.log(0.04/3), sigma=1/5)    
             omega_global_mean = pm.Deterministic("omega_global_mean", pt.exp(log_omega_global_mean))
             ### state
             omega_state_sd = pm.HalfNormal("omega_state_sd", sigma=1/5)      
@@ -321,7 +321,7 @@ def run_training():
             ## alpha and beta
             logit_a_garch = pm.Normal("logit_a_garch", mu=0, sigma=1)
             a_garch = pm.Deterministic("a_garch", pm.math.sigmoid(logit_a_garch))
-            b_garch = pm.Deterministic("b_garch", pt.as_tensor_variable(0.0))
+            b_garch = pm.Deterministic("b_garch", pt.as_tensor_variable(b_garch))
             # Initial noise   
             sigma2_0 = pm.Deterministic("sigma2_0", omega, dims=("season", "state"))
 
@@ -330,7 +330,7 @@ def run_training():
                 fn=AR_GARCH_step,
                 sequences=[eta,],
                 outputs_info=[z_0, sigma2_0, eps_0],
-                non_sequences=[phi, omega, a_garch, b_garch, pt.as_tensor_variable(1 if use_garch else 0)],
+                non_sequences=[phi, omega, a_garch, b_garch],
                 return_updates=False
             )
 
@@ -367,7 +367,7 @@ def run_training():
                 initvals = trace_to_initvals(prev_trace, [rv.name for rv in model.free_RVs])
             # set step size directly
             # for US as a whole: step_scale: 0.002 + max_treedepth 12, For U.S. census regions clusters: step_scale: 0.005 + max_treedepth 10
-            step = pm.NUTS(step_scale=0.002, target_accept=0.8, max_treedepth=12)       
+            step = pm.NUTS(step_scale=0.002, target_accept=0.8, max_treedepth=13)       
             # run sampler without tuning
             trace = pm.sample(n_sample, tune=0, chains=n_chains, progressbar=True,
                             cores=n_chains, init='adapt_diag', step = step,
@@ -468,6 +468,7 @@ def run_training():
                 ax[0].scatter(dt[i, :], posterior_predictive.observed_data['data'].values[i,s,:], marker='o', color='black')
 
                 # across-season delta_beta trend
+                # TODO align with dates
                 ax[1].plot(range(n_modifiers), trace.posterior['delta_beta_state_mean'].median(dim=['chain', 'draw']).values[:,s], color='green')
                 ax[1].fill_between(range(n_modifiers),
                                 trace.posterior['delta_beta_state_mean'].quantile(dim=['chain', 'draw'], q=0.025).values[:,s],
