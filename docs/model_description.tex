@@ -137,25 +137,16 @@ The stochastic part $z_{i,j}(l)$ evolves according to an AR(1) process whose inn
 \begin{align}
 	z_{i,j}(l) &= \phi_{i,j} \,z_{i,j}(l-1) + \varepsilon_{i,j}(l), \\ \label{eq:ar1}
 	\varepsilon_{i,j}(l) &= v_{i,j}(l)\,\sigma_{i,j}(l), \\
-    \sigma^2_{i,j}(l) &= \omega + \alpha_{i,j}\,\varepsilon^2_{i,j}(l-1) + \beta_{i,j}\,\sigma^2_{i,j}(l-1),
+    \sigma^2_{i,j}(l) &= \omega_{i,j} + \alpha_{i,j}\,\varepsilon^2_{i,j}(l-1) + \beta_{i,j}\,\sigma^2_{i,j}(l-1),
 \end{align}
 with initialization $z_{i,j}(0) = 0$ and $\varepsilon_{i,j}(0) = 0$. The innovation terms $\bm{v}_i(l)$ driving the system are spatially correlated across U.S.\ states and territories using a Leroux CAR model,
 \begin{equation}
     \bm{v}_i(l) = \sigma_v \, \bm{L}(\psi_2)^{-\top}\, \bm{u}_i(l), 
     \qquad \bm{u}_i(l) \sim \Normal(\bm{0}, \bm{I}),
 \end{equation}
-so that $\bm{v}_i(l) \sim \Normal\big(\bm{0}, \bm{Q}(\psi_2)^{-1}\big)$. Equation~\eqref{eq:ar1} represents the AR(1) dynamics governing deviations from the seasonal mean modifier, with persistence $\phi_{i,j}$. The GARCH(1,1) process governs the time-varying innovation variance, where $\omega$ controls the baseline variance, $\alpha_{i,j}$ captures sensitivity to new shocks, and $\beta_{i,j}$ controls persistence of volatility. Stationarity is ensured by constraining $\kappa_{i,j} = \alpha_{i,j} + \beta_{i,j} < 1$.\\
+so that $\bm{v}_i(l) \sim \Normal\big(\bm{0}, \bm{Q}(\psi_2)^{-1}\big)$. Equation~\eqref{eq:ar1} represents the AR(1) dynamics governing deviations from the seasonal mean modifier, with persistence $\phi_{i,j}$. The GARCH(1,1) process governs the time-varying innovation variance, where $\omega_{i,j}$ controls the baseline variance, $\alpha_{i,j}$ captures sensitivity to new shocks, and $\beta_{i,j}$ controls persistence of volatility.\\
 
-The AR(1) persistence $\phi_{i,j}$ and the volatility persistence $\kappa_j = \alpha_j + \beta_j$ are both modeled as non-centered additive hierarchies across seasons and U.S.\ states and territories with a logit-link function, identical to $f_R$ (Eq.~\eqref{eq:f_R}). The baseline volatility $\omega$ is modeled as,
-\begin{equation}
-    \omega \sim \Lognormal\!\left(\log(0.01/3),\ 1/25\right).
-\end{equation}
-
-The total persistence of volatility is split between the ARCH term $\alpha_{i,j} = \kappa_{i,j} \nu$ (sensitivity to new shocks) and the GARCH term $\beta_{i,j} = \kappa_{i,j}(1-\nu)$ (retention of volatility) via,
-\begin{equation}
-    \nu \sim \text{Beta}(5,\, 1),
-\end{equation}
-placing prior mass toward $\nu \approx 1$, i.e., incorporating the belief that when a modifier trajectory deviates substantially from the seasonal mean, the resulting increase in volatility is not retained long (short-term volatility retention). The initial variance is centered at the expected GARCH(1,1) equilibrium variance of $\sigma^2_{i,j}(0) = \omega/(1-\kappa_{i,j})$.
+The AR(1) persistence $\phi_{i,j}$ and the baseline noise $\omega_{i,j}$ are both modeled as non-centered additive hierarchies across seasons and U.S.\ states and territories with logit-link and log-link functions respectively. Because it is not possible to identify $\alpha_{i,j}$ and $\beta_{i,j}$, we assume $\beta_{i,j} = c $ with $c=0.0$ as the baseline assumption (no volatility clustering) and $\alpha_{i,j} = \alpha$. The initial variance is $\sigma_{i,j}^2 = \omega_{i,j}$.
 
 %-----------------------------------------------------------
 \section{Training and Forecasting}
