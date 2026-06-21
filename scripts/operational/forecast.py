@@ -10,6 +10,7 @@ Licensed under CC BY-NC-SA 4.0
 
 # standard python libraries
 import os
+import json
 import numpy as np
 import pandas as pd
 import multiprocessing as mp
@@ -37,16 +38,7 @@ def run_forecast():
     abs_dir = os.path.dirname(__file__)
 
     # global parameters go here
-    ## model-structural
-    use_garch = True
-    gamma = 1/3.5
-    n_modifiers = 26
-    modifier_length = 7
-    start_simulation = -15
-    ## clustering
-    clustering_name = 'all'
     ## training metadata
-    start_calibration_month = 10
     training_name = 'exclude_None-wGARCH'
     training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     ## forecasting settings
@@ -59,12 +51,26 @@ def run_forecast():
     n_chains = 4
     sigma_grw = 0.01
 
+    ## load the model-structural parameters and training metadata
+    with open(os.path.join(training_folder, "model_config.json"), "r") as f:
+        params = json.load(f)
+
+    b_garch = params["b_garch"]
+    gamma = params["gamma"]
+    n_modifiers = params["n_modifiers"]
+    modifier_length = params["modifier_length"]
+    start_simulation = params["start_simulation"]
+    modifier_ref_month = params["modifier_ref_month"]
+    modifier_ref_day = params["modifier_ref_day"]
+    clustering_name = params["clustering_name"]
+    start_calibration_month = params["start_calibration_month"]
+
     # derived products
     ## convert to a list of start and enddates (datetime)
     n_seasons = len(seasons)
     start_calibrations = [datetime(int(season[0:4]), start_calibration_month, 1) for season in seasons]
-    modifier_reference_dates = [datetime(int(season[0:4]), 10, 15) for season in seasons]
-    model_name = 'SCARCHhierarSIR' if use_garch else 'SCARhierarSIR'
+    modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) for season in seasons]
+    model_name = 'SCARCHhierarSIR'
 
     # Get the clusters
     # ~~~~~~~~~~~~~~~~
@@ -129,17 +135,17 @@ def run_forecast():
         psi_2                   = hyperpars['psi_2'].unique()[0]
         phi_global_mean         = hyperpars['phi_global_mean'].unique()[0]
         phi_season_sd           = hyperpars['phi_season_sd'].unique()[0]
-        kappa_global_mean       = hyperpars['kappa_global_mean'].unique()[0]
-        kappa_season_sd         = hyperpars['kappa_season_sd'].unique()[0]
-        omega                   = hyperpars['omega'].unique()[0]
-        nu                      = hyperpars['nu'].unique()[0]
+        omega_global_mean       = hyperpars['omega_global_mean'].unique()[0]
+        omega_season_sd         = hyperpars['omega_season_sd'].unique()[0]
+        a_garch                 = hyperpars['a_garch'].unique()[0]
+        b_garch                 = hyperpars['b_garch'].unique()[0]
         ## (state) vectors
         alpha_inv               = hyperpars['alpha_inv'].values
         rho_state               = hyperpars['rho_state'].values
         fI_state                = hyperpars['fI_state'].values
         fR_state                = hyperpars['fR_state'].values
         phi_state               = hyperpars['phi_state'].values
-        kappa_state             = hyperpars['kappa_state'].values
+        omega_state             = hyperpars['omega_state'].values
 
         ## hypermodifiers
         modifier_cols = [c for c in hyperpars.columns if c.startswith("delta_beta_state_mean_")]
@@ -279,37 +285,37 @@ def run_forecast():
             phi_season_raw = pm.Normal("phi_season_raw", 0, 1, dims="season")
             phi = pm.Deterministic("phi", pt.squeeze(pm.math.sigmoid(pm.math.logit(phi_global_mean) + pt.log(phi_state)[None, :] + phi_season_sd * phi_season_raw[:, None])[0,:]))
             # sample iid standard normals as shocks
-            eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, dims=("modifier","state"))
+            eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, shape=(n_modifiers-1, n_states))
             # correlate them across space using the precision matrix 
             eta = pm.Deterministic("eta", pt.einsum("ij,mj->mi", L_cov_shocks, eta_raw))    # shape: (modifier x state)
 
             # --- GARCH(1,1) parameters ---                                                                             
-            # Total noise persistence
-            ### global (kappa_global_mean)
-            ### state (kappa_state)
-            ### season (kappa_season_sd)
-            kappa_season_raw = pm.Normal("kappa_season_raw", 0, 1, dims="season")
-            kappa = pm.Deterministic("kappa", pt.squeeze(pm.math.sigmoid(pm.math.logit(kappa_global_mean) + pt.log(kappa_state)[None, :] + kappa_season_sd * kappa_season_raw[:, None])[0,:]))
-            
-            # Split between a and b (nu hyperparameter)                                                                                                             
-            a_garch = pm.Deterministic("a_garch", kappa * nu)                                                        
-            b_garch = pm.Deterministic("b_garch", kappa * (1 - nu))                         
-            sigma2_0 = pm.Deterministic("sigma2_0", omega/(1-kappa), dims="state")
+            # Baseline noise
+            ### global (omega_global_mean)
+            ### state (omega_state)
+            ### season (omega_season_sd)
+            omega_season_raw = pm.Normal("omega_season_raw", 0, 1, dims="season")
+            omega = pm.Deterministic("omega", pt.exp(pt.log(omega_global_mean) + pt.log(omega_state)[None, :] + omega_season_sd * omega_season_raw[:, None])[0,:])
+
+            # Initial state + a_garch, b_garch                                                                                                         
+            a_garch = pm.Deterministic("a_garch", pt.as_tensor_variable(a_garch))                                                        
+            b_garch = pm.Deterministic("b_garch", pt.as_tensor_variable(b_garch))                  
+            sigma2_0 = pm.Deterministic("sigma2_0", omega, dims="state")
 
             # Run AR-GARCH scan over T steps
             z_seq, sigma2_seq, eps_seq = pytensor.scan(
                 fn=AR_GARCH_step,
                 sequences=[eta,],
                 outputs_info=[z_0, sigma2_0, eps_0],
-                non_sequences=[phi, omega, a_garch, b_garch, pt.as_tensor_variable(1 if use_garch else 0)],
+                non_sequences=[phi, omega, a_garch, b_garch],
                 return_updates=False
             )
 
             # Register deterministic variables to inspect later
-            delta_beta = pm.Deterministic("delta_beta", delta_beta_state_mean + z_seq)
-            z = pm.Deterministic("z", z_seq)
-            sigma2 = pm.Deterministic("sigma2", sigma2_seq)
-            eps = pm.Deterministic("eps", eps_seq)
+            z = pm.Deterministic("z", pt.concatenate([z_0[None, ...], z_seq], axis=0))  # prepend initial condition
+            sigma2 = pm.Deterministic("sigma2", pt.concatenate([sigma2_0[None, ...], sigma2_seq], axis=0))
+            eps = pm.Deterministic("eps", pt.concatenate([eps_0[None, ...], eps_seq], axis=0))
+            delta_beta = pm.Deterministic("delta_beta", z + delta_beta_state_mean)
 
             # concatenate parameters along last axis (n_seasons, n_states, n_parameters)
             args_diff = pt.concatenate(
@@ -336,7 +342,7 @@ def run_forecast():
         print('\n..finished sampling\n')
 
         # Generate traces
-        variables2plot = ['rho', 'fI', 'fR', 'phi', 'kappa', 'sigma2_0']
+        variables2plot = ['rho', 'fI', 'fR', 'phi', 'omega', 'sigma2_0']
 
         # Save original traces
         os.makedirs(os.path.join(output_folder, 'traces'), exist_ok=True)
