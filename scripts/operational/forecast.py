@@ -63,7 +63,7 @@ def run_forecast():
     modifier_ref_month = params["modifier_ref_month"]
     modifier_ref_day = params["modifier_ref_day"]
     clustering_name = params["clustering_name"]
-    start_calibration_month = params["clustering_name"]
+    start_calibration_month = params["start_calibration_month"]
 
     # derived products
     ## convert to a list of start and enddates (datetime)
