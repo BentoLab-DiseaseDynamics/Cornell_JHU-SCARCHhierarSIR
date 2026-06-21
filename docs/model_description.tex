@@ -146,7 +146,7 @@ with initialization $z_{i,j}(0) = 0$ and $\varepsilon_{i,j}(0) = 0$. The innovat
 \end{equation}
 so that $\bm{v}_i(l) \sim \Normal\big(\bm{0}, \bm{Q}(\psi_2)^{-1}\big)$. Equation~\eqref{eq:ar1} represents the AR(1) dynamics governing deviations from the seasonal mean modifier, with persistence $\phi_{i,j}$. The GARCH(1,1) process governs the time-varying innovation variance, where $\omega_{i,j}$ controls the baseline variance, $\alpha_{i,j}$ captures sensitivity to new shocks, and $\beta_{i,j}$ controls persistence of volatility.\\
 
-The AR(1) persistence $\phi_{i,j}$ and the baseline noise $\omega_{i,j}$ are both modeled as non-centered additive hierarchies across seasons and U.S.\ states and territories with logit-link and log-link functions respectively. Because it is not possible to identify $\alpha_{i,j}$ and $\beta_{i,j}$, we assume $\beta_{i,j} = c $ with $c=0.0$ as the baseline assumption (no volatility clustering) and $\alpha_{i,j} = \alpha$. The initial variance is $\sigma_{i,j}^2 = \omega_{i,j}$.
+The AR(1) persistence $\phi_{i,j}$ and the baseline noise $\omega_{i,j}$ are both modeled as non-centered additive hierarchies across seasons and U.S.\ states and territories with logit-link and log-link functions respectively. Because it is not possible to identify $\alpha_{i,j}$ and $\beta_{i,j}$ simultaneously, we assume $\beta_{i,j} = c $ with $c=0.0$ as the baseline assumption (no volatility clustering) and $\alpha_{i,j} = \alpha$. The initial variance is equal to $\sigma_{i,j}^2 = \omega_{i,j}$.
 
 %-----------------------------------------------------------
 \section{Training and Forecasting}
