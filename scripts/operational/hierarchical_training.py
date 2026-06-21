@@ -479,11 +479,8 @@ def run_training():
                 ax[0].scatter(dt[i, :], posterior_predictive.observed_data['data'].values[i,s,:], marker='o', color='black')
 
                 # across-season delta_beta trend
-                print(dt[i,0])
                 yr = dt[i, 0].astype(object).year
-                print(yr)
                 modifier_dates = pd.date_range(start=datetime(yr, modifier_ref_month, modifier_ref_day), periods=n_modifiers, freq=timedelta(weeks=1))
-                print(modifier_dates)
                 ax[1].plot(modifier_dates, trace.posterior['delta_beta_state_mean'].median(dim=['chain', 'draw']).values[:,s], color='green')
                 ax[1].fill_between(modifier_dates,
                                 trace.posterior['delta_beta_state_mean'].quantile(dim=['chain', 'draw'], q=0.025).values[:,s],
