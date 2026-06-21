@@ -306,7 +306,7 @@ def run_training():
             # --- GARCH(1,0) = ARCH(1) parameters ---    
             ## baseline noise
             ### global
-            log_omega_global_mean = pm.Normal("log_omega_global_mean", mu=pt.log(0.04/3), sigma=1/5)    
+            log_omega_global_mean = pm.Normal("log_omega_global_mean", mu=pt.log(0.05/3), sigma=1/5)    
             omega_global_mean = pm.Deterministic("omega_global_mean", pt.exp(log_omega_global_mean))
             ### state
             omega_state_sd = pm.HalfNormal("omega_state_sd", sigma=1/5)      
@@ -366,8 +366,8 @@ def run_training():
                 prev_trace = arviz.from_netcdf(trace_path)
                 initvals = trace_to_initvals(prev_trace, [rv.name for rv in model.free_RVs])
             # set step size directly
-            # for US as a whole: step_scale: 0.002 + max_treedepth 12, For U.S. census regions clusters: step_scale: 0.005 + max_treedepth 10
-            step = pm.NUTS(step_scale=0.002, target_accept=0.8, max_treedepth=13)       
+            # for US as a whole: step_scale: 0.00175 + max_treedepth 13, For U.S. census regions clusters: step_scale: 0.005 + max_treedepth 10
+            step = pm.NUTS(step_scale=0.00175, target_accept=0.8, max_treedepth=13)       
             # run sampler without tuning
             trace = pm.sample(n_sample, tune=0, chains=n_chains, progressbar=True,
                             cores=n_chains, init='adapt_diag', step = step,
