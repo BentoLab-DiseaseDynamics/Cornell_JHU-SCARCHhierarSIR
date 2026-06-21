@@ -39,9 +39,11 @@ def run_forecast():
     # global parameters go here
     ## model-structural
     gamma = 1/3.5
-    n_modifiers = 26
+    n_modifiers = 27
     modifier_length = 7
-    start_simulation = -15
+    start_simulation = -30
+    modifier_ref_month = 11
+    modifier_ref_day = 1
     ## clustering
     clustering_name = 'all'
     ## training metadata
@@ -62,7 +64,7 @@ def run_forecast():
     ## convert to a list of start and enddates (datetime)
     n_seasons = len(seasons)
     start_calibrations = [datetime(int(season[0:4]), start_calibration_month, 1) for season in seasons]
-    modifier_reference_dates = [datetime(int(season[0:4]), 10, 15) for season in seasons]
+    modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) for season in seasons]
     model_name = 'SCARCHhierarSIR'
 
     # Get the clusters

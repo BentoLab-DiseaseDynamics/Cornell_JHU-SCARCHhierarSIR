@@ -16,7 +16,7 @@ import pandas as pd
 import multiprocessing as mp
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from datetime import datetime
+from datetime import datetime, timedelta
 # pyMC / pytensor
 import pymc as pm
 import pytensor
@@ -42,9 +42,11 @@ def run_training():
     ## model-structural
     b_garch = 0.0
     gamma = 1/3.5
-    n_modifiers = 26
+    n_modifiers = 27
     modifier_length = 7
-    start_simulation = -15 # (October 1)
+    start_simulation = -30 # (October 1)
+    modifier_ref_month = 11
+    modifier_ref_day = 1
     ## clustering
     clustering_name = 'all'
     ## temporal extent of training
@@ -54,7 +56,7 @@ def run_training():
     ## sampling effort
     n_chains = 8
     n_sample = 50
-    n_burn = 0
+    n_burn = 5
     training_name = 'exclude_None-wGARCH'
     n_preoptim = 1000
     ## use previous sampling
@@ -64,7 +66,7 @@ def run_training():
     ## convert to a list of start and enddates (datetime)
     n_seasons = len(seasons)
     start_calibrations = [datetime(int(season[0:4]), start_calibration_month, 1) for season in seasons]
-    modifier_reference_dates = [datetime(int(season[0:4]), 10, 15) for season in seasons]
+    modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) for season in seasons]
     ## misc
     assert n_sample > n_burn, 'number of burned samples cannot exceed total number of samples'
 
@@ -454,7 +456,7 @@ def run_training():
             os.makedirs(os.path.join(output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/'), exist_ok=True)
             for i, season in enumerate(seasons):
                 
-                fig,ax=plt.subplots(nrows=5, figsize=(8.3, 11.7))
+                fig,ax=plt.subplots(nrows=5, figsize=(8.3, 11.7), sharex=True)
                 # observed versus modeled
                 ax[0].plot(dt[i, :], posterior_predictive.posterior_predictive['data'].median(dim=['chain', 'draw']).values[i,s,:], linewidth=1, color='green')
                 ax[0].fill_between(dt[i, :],
@@ -468,17 +470,21 @@ def run_training():
                 ax[0].scatter(dt[i, :], posterior_predictive.observed_data['data'].values[i,s,:], marker='o', color='black')
 
                 # across-season delta_beta trend
-                # TODO align with dates
-                ax[1].plot(range(n_modifiers), trace.posterior['delta_beta_state_mean'].median(dim=['chain', 'draw']).values[:,s], color='green')
-                ax[1].fill_between(range(n_modifiers),
+                print(dt[i,0])
+                yr = dt[i, 0].astype(object).year
+                print(yr)
+                modifier_dates = pd.date_range(start=datetime(yr, modifier_ref_month, modifier_ref_day), periods=n_modifiers, freq=timedelta(weeks=1))
+                print(modifier_dates)
+                ax[1].plot(modifier_dates, trace.posterior['delta_beta_state_mean'].median(dim=['chain', 'draw']).values[:,s], color='green')
+                ax[1].fill_between(modifier_dates,
                                 trace.posterior['delta_beta_state_mean'].quantile(dim=['chain', 'draw'], q=0.025).values[:,s],
                                 trace.posterior['delta_beta_state_mean'].quantile(dim=['chain', 'draw'], q=0.975).values[:,s],
                                 color='green', alpha=0.15)
                 
                 # within-season delta_beta, z, sigma2, eps
                 for j, par in enumerate(['delta_beta', 'z', 'sigma2', 'eps']):
-                    ax[j+1].plot(range(n_modifiers), trace.posterior[par].median(dim=['chain', 'draw']).values[:,i,s], color='black', linewidth=0.5)
-                    ax[j+1].fill_between(range(n_modifiers),
+                    ax[j+1].plot(modifier_dates, trace.posterior[par].median(dim=['chain', 'draw']).values[:,i,s], color='black', linewidth=0.5)
+                    ax[j+1].fill_between(modifier_dates,
                             trace.posterior[par].quantile(dim=['chain', 'draw'], q=0.025).values[:,i,s],
                             trace.posterior[par].quantile(dim=['chain', 'draw'], q=0.975).values[:,i,s],
                             color='black', alpha=0.15)
