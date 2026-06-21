@@ -520,19 +520,23 @@ def run_training():
             # ---- Bottom row: state and season forest plots ----
             ## state
             samples = trace.posterior[p_state].stack(sample=("chain", "draw"))
-            # compute median and HDI
+            # compute median and 50% & 95% HDI
             median = samples.median(dim="sample").values
             hdi = arviz.hdi(samples, prob=0.95, dim="sample")
-            lower = hdi.sel(ci_bound="lower").values
-            upper = hdi.sel(ci_bound="upper").values
+            lower_95 = hdi.sel(ci_bound="lower").values
+            upper_95 = hdi.sel(ci_bound="upper").values
+            hdi = arviz.hdi(samples, prob=0.50, dim="sample")
+            lower_75 = hdi.sel(ci_bound="lower").values
+            upper_75 = hdi.sel(ci_bound="upper").values
             # labels
             states = samples["state"].values
             # y positions
             y = np.arange(len(states))
             # horizontal intervals
-            axes[1, 0].hlines(y, lower, upper, linewidth=2, color='forestgreen')
+            axes[1, 0].hlines(y, lower_75, upper_75, linewidth=3, color='forestgreen')
+            axes[1, 0].hlines(y, lower_95, upper_95, linewidth=1, color='forestgreen')
             # median points
-            axes[1, 0].plot(median, y, "o", color='black')
+            axes[1, 0].plot(median, y, "o", color='black', markerfacecolor='white', markersize=3)
             # reference line
             axes[1, 0].axvline(1, color="black", linestyle="--")
             # formatting
@@ -550,16 +554,20 @@ def run_training():
             # compute median and HDI
             median = samples.median(dim="sample").values
             hdi = arviz.hdi(samples, prob=0.95, dim="sample")
-            lower = hdi.sel(ci_bound="lower").values
-            upper = hdi.sel(ci_bound="upper").values
+            lower_95 = hdi.sel(ci_bound="lower").values
+            upper_95 = hdi.sel(ci_bound="upper").values
+            hdi = arviz.hdi(samples, prob=0.50, dim="sample")
+            lower_75 = hdi.sel(ci_bound="lower").values
+            upper_75 = hdi.sel(ci_bound="upper").values
             # labels
             states = samples["season"].values
             # y positions
             y = np.arange(len(states))
             # horizontal intervals
-            axes[1, 1].hlines(y, lower, upper, linewidth=2, color='forestgreen')
+            axes[1, 1].hlines(y, lower_75, upper_75, linewidth=3, color='forestgreen')
+            axes[1, 1].hlines(y, lower_95, upper_95, linewidth=1, color='forestgreen')
             # median points
-            axes[1, 1].plot(median, y, "o", color="black")
+            axes[1, 1].plot(median, y, "o", color='black', markerfacecolor='white', markersize=3)
             # reference line
             axes[1, 1].axvline(1, color="black", linestyle="--")
             # formatting
