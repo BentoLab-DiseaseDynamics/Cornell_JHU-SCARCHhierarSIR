@@ -305,13 +305,173 @@ def get_NHSN_HRD_data(
 ## Conversion and Hubverse formatting ##
 ########################################
 
-def simout_to_hubverse(simout: arviz.InferenceData,
+def simout_to_hubverse_peak_admissions(simout: arviz.InferenceData,
+                                        reference_date: datetime,
+                                        state_fips_index: dict,
+                                        target: str='peak inc flu hosp',
+                                        quantiles: bool=False) -> pd.DataFrame:
+    """
+    Convert pyMC simulation result ("observed" part of simulation + forecast) to peak admissions in Hubverse format
+
+    Parameters
+    ----------
+
+    - simout: arviz.InferenceData
+        - pyMC simulation output. merged model states "obs" and "pred". dimensions: (draw, state, horizon).
+        - flatten the 'chain' and 'draw' axes 
+        - merge both model states 'obs' and 'pred' 
+
+    - reference_date: datetime
+        - when using data until a Saturday `x` to calibrate the model, `reference_date` is the date of the next saturday `x+1`.
+
+    - state_fips_index: dict
+        - keys: state abbreviations (e.g., 'MT', type str)
+        - values: state fips codes (e.g., '30', type str, with leading zero for fips codes 1-9)
+
+    - target: str
+        - simulation target, typically 'peak inc flu hosp'.
+
+    - quantiles: str
+        - save quantiles instead of individual trajectories.
+
+    Returns
+    -------
+
+    - hubverse_df: pd.Dataframe
+        - forecast in hubverse format
+        - contains the total hospital admissions in the 'value' column
+
+    Reference
+    ---------
+
+    https://github.com/cdcepi/FluSight-forecast-hub/blob/main/auxiliary-data/2025-10-18-example-submission.csv
+    """
+
+    # deduce information from simout
+    abbreviation_state = simout.coords["state"].values.tolist()
+    fips_state = [f"{state_fips_index[s]:02d}" for s in abbreviation_state]
+    output_type_id = simout.coords['draw'].values if not quantiles else [0.01, 0.025, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.975, 0.99]
+    # fixed metadata
+    output_type = 'samples' if not quantiles else 'quantile'
+
+    # pre-allocate dataframe
+    idx = pd.MultiIndex.from_product([[reference_date,], [target,], fips_state, [output_type,], output_type_id],
+                                        names=['reference_date', 'target', 'location', 'output_type', 'output_type_id'])
+    df = pd.DataFrame(index=idx, columns=['value',])
+    df = df.reset_index()
+
+    # compute pmf of peak incidence by looping over samples
+    for fips,abbrev in zip(fips_state, abbreviation_state):
+        if not quantiles:
+            for draw in simout.coords['draw'].values:
+                df.loc[((df['output_type_id'] == draw) & (df['location'] == fips)), 'value'] = max(simout.sel(state=abbrev).sel({'draw': draw}).values)
+        else:
+            peak_incidences = []
+            for draw in simout.coords['draw'].values:
+                peak_incidences.append(max(simout.sel(state=abbrev).sel({'draw': draw}).values))
+            for q in output_type_id:
+                df.loc[((df['output_type_id'] == q) & (df['location'] == fips)), 'value'] = \
+                    np.quantile(peak_incidences, q=q)
+
+    # Round to the closest integer and convert to int
+    df["value"] = df["value"].round().astype(int)
+
+    return df
+
+
+def simout_to_hubverse_peak_timing(simout: arviz.InferenceData,
+                                        reference_date: datetime,
+                                        challenge_start_reference_date: datetime,
+                                        challenge_end_reference_date: datetime,
+                                        state_fips_index: dict,
+                                        target: str='peak week inc flu hosp',
+                                        quantiles: bool=False) -> pd.DataFrame:
+    """
+    Convert pyMC simulation result ("observed" part of simulation + forecast) to peak timing in Hubverse format
+
+    Parameters
+    ----------
+
+    - simout: arviz.InferenceData
+        - pyMC simulation output. merged model states "obs" and "pred". dimensions: (draw, state, horizon).
+        - flatten the 'chain' and 'draw' axes 
+        - merge both model states 'obs' and 'pred' 
+
+    - reference_date: datetime
+        - when using data until a Saturday `x` to calibrate the model, `reference_date` is the date of the next saturday `x+1`.
+
+    - challenge_start_reference_date: datetime
+        - when using data until a Saturday `x` to calibrate the model, `reference_date` is the date of the next saturday `x+1`.
+        - first reference date of the season
+
+    - challenge_end_reference_date: datetime
+        - when using data until a Saturday `x` to calibrate the model, `reference_date` is the date of the next saturday `x+1`.
+        - first reference date of the season
+
+    - state_fips_index: dict
+        - keys: state abbreviations (e.g., 'MT', type str)
+        - values: state fips codes (e.g., '30', type str, with leading zero for fips codes 1-9)
+
+    - target: str
+        - simulation target, typically 'peak week inc flu hosp'.
+
+    - quantiles: str
+        - save quantiles instead of individual trajectories.
+
+    Returns
+    -------
+
+    - hubverse_df: pd.Dataframe
+        - forecast in hubverse format
+        - contains the total hospital admissions in the 'value' column
+
+    Reference
+    ---------
+
+    https://github.com/cdcepi/FluSight-forecast-hub/blob/main/auxiliary-data/2025-10-18-example-submission.csv
+    """
+
+    # deduce information from simout
+    abbreviation_state = simout.coords["state"].values.tolist()
+    fips_state = [f"{state_fips_index[s]:02d}" for s in abbreviation_state]
+    assert ((challenge_start_reference_date.weekday() == 5) & (challenge_end_reference_date.weekday() == 5))
+    output_type_id = pd.date_range(start=challenge_start_reference_date, end=challenge_end_reference_date, freq="W-SAT")
+    output_type = 'pmf'
+
+    # pre-allocate dataframe
+    idx = pd.MultiIndex.from_product([[reference_date,], [target,], fips_state, [output_type,], output_type_id],
+                                        names=['reference_date', 'target', 'location', 'output_type', 'output_type_id'])
+    df = pd.DataFrame(index=idx, columns=['value',])
+    df = df.reset_index()
+    df['output_type_id'] = df['output_type_id'].dt.strftime('%Y-%m-%d')
+
+    # compute pmf of peak incidence by looping over samples
+    output_type_id_horizon = (output_type_id - reference_date) / timedelta(days=7)
+    for fips,abbrev in zip(fips_state, abbreviation_state):
+        # compute peak timing
+        peak_timing_horizon = []
+        for draw in simout.coords['draw'].values:
+            peak_timing_horizon.append(int(simout.sel(state=abbrev).sel({'draw': draw}).idxmax('horizon').values))
+        
+        # compute pmf
+        bin_edges = np.append(output_type_id_horizon, output_type_id_horizon[-1] + 1)
+        counts, _ = np.histogram(peak_timing_horizon, bins=bin_edges)
+        total_peaks = counts.sum()
+        pmf = counts / total_peaks
+
+        # assign values
+        df.loc[df['location'] == fips, 'value'] = pmf
+
+    return df
+
+
+def simout_to_hubverse_admissions(simout: arviz.InferenceData,
                         reference_date: datetime,
                         state_fips_index: dict,
-                        target: str,
+                        target: str='wk inc flu hosp',
                         quantiles: bool=False) -> pd.DataFrame:
     """
-    Convert pyMC simulation result to CDC FluSight's Hubverse format
+    Convert pyMC simulation result (forecast) to Hubverse format
 
     Parameters
     ----------
@@ -361,17 +521,18 @@ def simout_to_hubverse(simout: arviz.InferenceData,
     # attach target end date
     df = df.reset_index()
     df['target_end_date'] = df.apply(lambda row: row['reference_date'] + timedelta(weeks=row['horizon']), axis=1)
+    df['target_end_date'] = df['target_end_date'].dt.strftime('%Y-%m-%d')
 
     # fill in dataframe
     for fips,abbrev in zip(fips_state, abbreviation_state):
         if not quantiles:
             for draw in output_type_id:
                 df.loc[((df['output_type_id'] == draw) & (df['location'] == fips)), 'value'] = \
-                    7*simout.sel(state=abbrev).sel({'draw': draw}).values
+                    simout.sel(state=abbrev).sel({'draw': draw}).values
         else:
             for q in output_type_id:
                 df.loc[((df['output_type_id'] == q) & (df['location'] == fips)), 'value'] = \
-                    7*simout.sel(state=abbrev).quantile(q=q, dim='draw').values
+                    simout.sel(state=abbrev).quantile(q=q, dim='draw').values
     
     # Round to the closest integer and convert to int
     df["value"] = df["value"].round().astype(int)

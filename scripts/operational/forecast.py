@@ -13,6 +13,7 @@ import os
 import json
 import numpy as np
 import pandas as pd
+import xarray as xr
 import multiprocessing as mp
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
@@ -26,7 +27,7 @@ import pytensor.tensor as pt
 # jax and diffrax
 import jax.numpy as jnp
 # model package
-from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, simout_to_hubverse
+from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, simout_to_hubverse_admissions, simout_to_hubverse_peak_admissions, simout_to_hubverse_peak_timing
 from SCARCHhierarSIR.SIR_model import get_jax_jitted_model, make_sol_op
 from SCARCHhierarSIR.pymc_model import AR_GARCH_step, compute_season_weights, weighted_nb_logp, weighted_nb_random
 from SCARCHhierarSIR.preoptimization import preoptimize_parameters
@@ -39,15 +40,17 @@ def run_forecast():
 
     # global parameters go here
     ## training metadata
-    training_name = 'exclude_None-wGARCH'
+    training_name = 'exclude_None'
     training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     ## forecasting settings
+    challenge_start_reference_date = datetime(2025, 10, 18) # must be a saturday
+    challenge_end_reference_date = datetime(2026, 5, 30)    # must be the last saturday of may
     seasons = ['2025-2026',]        # script only works with one season
-    n_observations = 25             # use all data available in the forecast season
-    forecast_horizon = 4            # forecast 4 weeks ahead
-    n_preoptim = 400
-    n_sample = 100
-    n_tune = 100
+    n_observations = 4              # use all data available in the forecast season
+    forecast_horizon = 20           # forecast 4 weeks ahead
+    n_preoptim = 500
+    n_sample = 75
+    n_tune = 25
     n_chains = 4
     sigma_grw = 0.01
 
@@ -230,7 +233,8 @@ def run_forecast():
             "state": state_fips_index['abbreviation_state'].values,
             "season": seasons,
             "modifier": np.arange(n_modifiers),
-            "horizon": np.arange(forecast_horizon)
+            "horizon_forecast": np.arange(forecast_horizon),
+            "horizon_observation": [-i for i in range(1, n_observations + 1)]
         }
 
         # Build pyMC probablistic model
@@ -328,7 +332,8 @@ def run_forecast():
             ys = pt.math.softplus(ys)
 
             # Compute likelihood (alpha_inv hyperparameter)
-            pm.CustomDist("obs", ys[:,:,:n_observations], 1/alpha_inv, weights, logp=weighted_nb_logp, random=weighted_nb_random, observed=7*data[:,:,:n_observations])
+            pm.CustomDist("obs", ys[:,:,:n_observations], 1/alpha_inv, weights, logp=weighted_nb_logp, random=weighted_nb_random,
+                          observed=7*data[:,:,:n_observations], dims=("season", "state", "horizon_observation"))
 
         # Sample pyMC model
         # ~~~~~~~~~~~~~~~~~
@@ -359,11 +364,11 @@ def run_forecast():
         with model:
 
             # add a geometric random walk per state to simulation output
-            grw_innov = pm.Normal("grw_innov", mu=0, sigma=sigma_grw, dims=("state", "horizon"))         # tune by LOOCV on WIS (currently set to NC stationary GRW baseline model optimal)
+            grw_innov = pm.Normal("grw_innov", mu=0, sigma=sigma_grw, dims=("state", "horizon_forecast"))         # tune by LOOCV on WIS (currently set to NC stationary GRW baseline model optimal)
             ys_future_rw = ys[:, :, n_observations:] * pt.exp(pt.cumsum(grw_innov, axis=1)[None, :, :])
 
             # add sampling noise
-            pred = pm.NegativeBinomial("pred", mu=ys_future_rw, alpha=1/alpha_inv[None, :, None], dims=("season", "state", "horizon"))
+            pred = pm.NegativeBinomial("pred", mu=ys_future_rw, alpha=1/alpha_inv[None, :, None], dims=("season", "state", "horizon_forecast"))
 
             # sample posterior predictive
             posterior_predictive = pm.sample_posterior_predictive(trace, var_names=["obs", "pred"])
@@ -418,17 +423,48 @@ def run_forecast():
         print('\nconverting simulation output to Hubverse format\n')
 
         # remove 'seasons' dimension and flatten the 'chain' and 'draw' dimensions into 'draw'
-        simout = posterior_predictive.posterior_predictive['pred']
-        simout = simout.sel(season=seasons).squeeze("season", drop=True)
-        simout = (simout.stack(sample=("chain", "draw")).reset_index("sample", drop=True).rename({"sample": "draw"}))
-        simout = simout.assign_coords(draw=np.arange(simout.sizes["draw"]))
+        ## [forecast]
+        pred = posterior_predictive.posterior_predictive['pred']
+        pred = pred.sel(season=seasons).squeeze("season", drop=True)
+        pred = (pred.stack(sample=("chain", "draw")).reset_index("sample", drop=True).rename({"sample": "draw"}))
+        pred = pred.assign_coords(draw=np.arange(pred.sizes["draw"]))
+        pred = pred.rename({"horizon_forecast": "horizon"})
+        ## [observed]
+        obs = posterior_predictive.posterior_predictive['obs']
+        obs = obs.sel(season=seasons).squeeze("season", drop=True)
+        obs = (obs.stack(sample=("chain", "draw")).reset_index("sample", drop=True).rename({"sample": "draw"}))
+        obs = obs.assign_coords(draw=np.arange(obs.sizes["draw"]))
+        obs = obs.rename({"horizon_observation": "horizon"})
+        ## [merge]
+        mrg = xr.merge([obs, pred], join='outer')
+        mrg["merged"] = mrg["obs"].fillna(mrg["pred"])
 
-        # convert to hubverse format
-        hv_out = simout_to_hubverse(simout,
-                                    reference_date, 
-                                    dict(zip(state_fips_index["abbreviation_state"], state_fips_index["fips_state"])),
-                                    target='wk inc flu hosp',
-                                    quantiles=True)
+        # estimate the peak admissions and convert to hubverse format
+        hv_out_peak_admissions = simout_to_hubverse_peak_admissions(mrg["merged"],
+                                                                        reference_date,
+                                                                        dict(zip(state_fips_index["abbreviation_state"],
+                                                                        state_fips_index["fips_state"])),
+                                                                        quantiles=True)
+        
+        # estimate the peak timing and convert to hubverse format
+        hv_out_peak_timing = simout_to_hubverse_peak_timing(mrg["merged"],
+                                                                reference_date,
+                                                                challenge_start_reference_date, 
+                                                                challenge_end_reference_date,
+                                                                dict(zip(state_fips_index["abbreviation_state"], state_fips_index["fips_state"])),
+                                                                quantiles=True)
+        
+        # convert the admissions to hubverse format
+        hv_out_admissions = simout_to_hubverse_admissions(pred,
+                                                            reference_date,
+                                                            dict(zip(state_fips_index["abbreviation_state"],
+                                                            state_fips_index["fips_state"])),
+                                                            quantiles=True)
+        hv_out_admissions = hv_out_admissions[hv_out_admissions['horizon'] <= 3] # limit admissions to 4-week aheads
+
+        # merge all metrics together
+        hv_out = pd.concat([hv_out_admissions, hv_out_peak_timing, hv_out_peak_admissions], axis=0, ignore_index=True)
+        hv_out = hv_out.fillna('NA')
 
         # save result
         hv_out.to_csv(os.path.join(output_folder, reference_date.strftime('%Y-%m-%d')+'-JHU_Cornell'+'-'+'SCARCHhierarSIR.csv'), index=False)
@@ -442,7 +478,7 @@ def run_forecast():
 
     # concatenate all forecasts and save them
     output = pd.concat(forecasts, axis=0)
-    output.to_csv(os.path.join(output_folder,'../..',reference_date.strftime('%Y-%m-%d')+'-JHU_Cornell'+'-'+f'{model_name}.csv'))
+    output.to_csv(os.path.join(output_folder,'../..',reference_date.strftime('%Y-%m-%d')+'-JHU_Cornell'+'-'+f'{model_name}.csv'), index=False)
 
     print(f'\nforecasting complete!\n')
 
