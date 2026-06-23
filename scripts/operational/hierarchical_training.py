@@ -43,11 +43,11 @@ def run_training():
     ## model-structural
     b_garch = 0.0
     gamma = 1/3.5
-    n_modifiers = 27
+    n_modifiers = 29
     modifier_length = 7
-    start_simulation = -30 # (October 1)
-    modifier_ref_month = 11
-    modifier_ref_day = 1
+    start_simulation = -15 # (October 1)
+    modifier_ref_month = 10
+    modifier_ref_day = 15
     clustering_name = 'all'
     ## temporal extent of training
     start_calibration_month = 10    # determines simulation start (1st day of month)
