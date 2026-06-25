@@ -43,21 +43,20 @@ def run_training():
     ## model-structural
     b_garch = 0.0
     gamma = 1/3.5
-    n_modifiers = 29
+    n_modifiers = 32
     modifier_length = 7
     start_simulation = -15 # (October 1)
     modifier_ref_month = 10
     modifier_ref_day = 15
     clustering_name = 'all'
     ## temporal extent of training
-    start_calibration_month = 10    # determines simulation start (1st day of month)
     n_observations = 35             # run until start of June
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 100
+    n_sample = 40
     n_burn = 0
-    training_name = 'exclude_None-wGARCH'
+    training_name = 'exclude_None-b_garch_0.00'
     n_preoptim = 1000
     ## use previous sampling
     cont_sampling = False   # To continue sampling, the number of chains and the observed data must match!
@@ -66,7 +65,7 @@ def run_training():
     output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     os.makedirs(output_folder, exist_ok=True)
     params = {"b_garch": b_garch, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "modifier_length": modifier_length, "start_simulation": start_simulation,
-              "modifier_ref_month": modifier_ref_month, "modifier_ref_day": modifier_ref_day, 'clustering_name': clustering_name, "start_calibration_month": start_calibration_month,
+              "modifier_ref_month": modifier_ref_month, "modifier_ref_day": modifier_ref_day, 'clustering_name': clustering_name,
                "observations": n_observations, 'seasons': seasons}
     with open(os.path.join(output_folder, "model_config.json"), "w") as f:
         json.dump(params, f, indent=4)
@@ -74,7 +73,7 @@ def run_training():
     # derived products
     ## convert to a list of start and enddates (datetime)
     n_seasons = len(seasons)
-    start_calibrations = [datetime(int(season[0:4]), start_calibration_month, 1) for season in seasons]
+    start_calibrations = [datetime(int(season[0:4]),modifier_ref_month, modifier_ref_day) + timedelta(days=start_simulation) for season in seasons] # start calibration at simulation start
     modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) for season in seasons]
     ## misc
     assert n_sample > n_burn, 'number of burned samples cannot exceed total number of samples'
@@ -272,7 +271,7 @@ def run_training():
 
             # Spatial correlation
             psi_1 = pm.Beta("psi_1", 3, 3)
-            psi_2 = pm.Beta("psi_2", 3, 1)
+            psi_2 = pm.Beta("psi_2", 3, 3)
 
             I = pt.eye(n_states)
             W = pt.as_tensor_variable(adj)
@@ -317,7 +316,7 @@ def run_training():
             # --- GARCH(1,0) = ARCH(1) parameters ---    
             ## baseline noise
             ### global
-            log_omega_global_mean = pm.Normal("log_omega_global_mean", mu=pt.log(0.05/3), sigma=1/5)    
+            log_omega_global_mean = pm.Normal("log_omega_global_mean", mu=pt.log(0.04/3), sigma=1/5)    
             omega_global_mean = pm.Deterministic("omega_global_mean", pt.exp(log_omega_global_mean))
             ### state
             omega_state_sd = pm.HalfNormal("omega_state_sd", sigma=1/5)      

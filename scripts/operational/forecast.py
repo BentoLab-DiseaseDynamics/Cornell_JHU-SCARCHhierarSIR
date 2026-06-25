@@ -66,12 +66,11 @@ def run_forecast():
     modifier_ref_month = params["modifier_ref_month"]
     modifier_ref_day = params["modifier_ref_day"]
     clustering_name = params["clustering_name"]
-    start_calibration_month = params["start_calibration_month"]
 
     # derived products
     ## convert to a list of start and enddates (datetime)
     n_seasons = len(seasons)
-    start_calibrations = [datetime(int(season[0:4]), start_calibration_month, 1) for season in seasons]
+    start_calibrations = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) + timedelta(days=start_simulation) for season in seasons]    # calibrations started at same time as simulation
     modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) for season in seasons]
     model_name = 'SCARCHhierarSIR'
 
