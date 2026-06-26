@@ -181,7 +181,7 @@ def run_training():
                 'log_rho_global_mean': init["log_rho"]["global"], 'rho_state_sd': 0.2, 'rho_state_raw': init["log_rho"]["state"] / 0.2, 'rho_season_sd': 0.2, 'rho_season_raw': init["log_rho"]["season"] / 0.2,
                 'log_fI_global_mean': init["log_fI"]["global"], 'fI_state_sd': 0.2, 'fI_state_raw': init["log_fI"]["state"] / 0.2, 'fI_season_sd': 0.2, 'fI_season_raw': init["log_fI"]["season"] / 0.2,
                 'logit_fR_global_mean': init["logit_fR"]["global"], 'fR_state_sd': 0.2, 'fR_state_raw': init["logit_fR"]["state"] / 0.2, 'fR_season_sd': 0.2, 'fR_season_raw': init["logit_fR"]["season"] / 0.2,
-                'logit_phi_global_mean': 0.50, 'log_omega_global_mean': pt.log(0.01)}]
+                'logit_phi_global_mean': 0.50, 'log_omega_global_mean': pt.log(0.05/3), 'omega_global_mean_shrinkage': 0.05/3}]
 
         print('\nparameter hierarchy reconstruction\n')
 
@@ -316,7 +316,8 @@ def run_training():
             # --- GARCH(1,0) = ARCH(1) parameters ---    
             ## baseline noise
             ### global
-            log_omega_global_mean = pm.Normal("log_omega_global_mean", mu=pt.log(0.04/3), sigma=1/5)    
+            omega_global_mean_shrinkage = pm.HalfNormal("omega_global_mean_shrinkage", sigma=0.05/3)
+            log_omega_global_mean = pm.Normal("log_omega_global_mean", mu=pt.log(omega_global_mean_shrinkage), sigma=1/5)    
             omega_global_mean = pm.Deterministic("omega_global_mean", pt.exp(log_omega_global_mean))
             ### state
             omega_state_sd = pm.HalfNormal("omega_state_sd", sigma=1/5)      
@@ -410,6 +411,7 @@ def run_training():
                         'psi_2', 'psi_1',                                                                       # spatial correlation strength
                         'phi_global_mean', 'phi_state_sd', 'phi_season_sd', 'phi',                              # AR 
                         'omega_global_mean', 'omega_state_sd', 'omega_state', 'omega_season_sd', 'omega_season', 'omega', # GARCH(1,0) parameters
+                        'omega_global_mean_shrinkage',
                         'a_garch', 'b_garch', 'sigma2_0',
                         ]
 
