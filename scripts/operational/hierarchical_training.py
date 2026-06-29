@@ -54,7 +54,7 @@ def run_training():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 40
+    n_sample = 30
     n_burn = 0
     training_name = 'exclude_None-b_garch_0.00'
     n_preoptim = 1000
@@ -270,7 +270,7 @@ def run_training():
             # ------- AR-GARCH modifiers -----------
 
             # Spatial correlation
-            psi_1 = pm.Beta("psi_1", 3, 3)
+            psi_1 = 0.01 + 0.99*pm.Beta("psi_1", 3, 3) # always had one chain getting stuck at exactly 0
             psi_2 = pm.Beta("psi_2", 3, 3)
 
             I = pt.eye(n_states)
