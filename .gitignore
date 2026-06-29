@@ -173,7 +173,8 @@ dmypy.json
 *.blg
 
 ## Calibration data
-data/interim/calibration/forecast/exclude_None-wGARCH_*
-data/interim/calibration/hierarchical-training/exclude_None-wGARCH_*
-data/interim/calibration/hierarchical-training/exclude_None-wGARCH/cluster_*
-data/interim/calibration/forecast/exclude_None-wGARCH/reference_date-*
+data/interim/calibration/forecast/exclude_None-*
+data/interim/calibration/forecast/exclude_None-/reference_date-*
+data/interim/calibration/hierarchical-training/exclude_None-*
+data/interim/calibration/hierarchical-training/exclude_None-/cluster_*
+
