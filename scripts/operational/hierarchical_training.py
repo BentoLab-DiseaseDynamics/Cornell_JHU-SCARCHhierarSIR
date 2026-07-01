@@ -75,9 +75,6 @@ def run_training():
     n_seasons = len(seasons)
     start_calibrations = [datetime(int(season[0:4]),modifier_ref_month, modifier_ref_day) + timedelta(days=start_simulation) for season in seasons] # start calibration at simulation start
     modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) for season in seasons]
-    ## misc
-    assert n_sample > n_burn, 'number of burned samples cannot exceed total number of samples'
-
 
     # Get the clusters
     # ~~~~~~~~~~~~~~~~
@@ -376,6 +373,9 @@ def run_training():
                 trace_path = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}/cluster_{cluster_idx}/trace.nc')
                 prev_trace = arviz.from_netcdf(trace_path)
                 initvals = trace_to_initvals(prev_trace, [rv.name for rv in model.free_RVs])
+                assert len(prev_trace.posterior.coords['draw'].values) > n_burn, 'number of burned samples cannot exceed total number of samples'
+            else:
+                assert n_sample > n_burn, 'number of burned samples cannot exceed total number of samples'
             # set step size directly
             # for US as a whole: step_scale: 0.00175 + max_treedepth 13, For U.S. census regions clusters: step_scale: 0.005 + max_treedepth 10
             step = pm.NUTS(step_scale=0.00175, target_accept=0.8, max_treedepth=12)       
