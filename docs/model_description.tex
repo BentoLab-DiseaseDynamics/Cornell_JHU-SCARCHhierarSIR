@@ -178,7 +178,7 @@ The season-state weights $w_{i,j}$ normalize all observed time series so that no
 \begin{equation}
     w_{i,j} = \frac{\left[ \text{mean}_{\{t\}} \big( \sqrt{y_{i,j}(t)}\, \big) \right]^{-1}}{\dfrac{1}{|\bm{S}| \cdot |\bm{T}|} \displaystyle\sum_{i'}\sum_{j'}  \left[ \text{mean}_{\{t\}} \big( \sqrt{y_{i',j'}(t)}\, \big) \right]^{-1}},
 \end{equation}
-alternative normalization functions use the average logarithm of the case counts or the maximum case count in a given season or state. Posterior sampling is performed using the No-U-Turn Sampler (NUTS) via PyMC.
+alternatives to this normalization function use the average natural logarithm of the case counts or the maximum case count per season and state. The square root had superior performance compared to the natural logarithm, which flattens more aggressively. Posterior sampling is performed using the No-U-Turn Sampler (NUTS) via PyMC.
  
 %-----------------------------------------------------------
 \subsection{Forecasting}
@@ -192,7 +192,7 @@ Thus, the cross-season hyperdistributions $\bm{\Psi}$ are used as prior distribu
 \section{Discussion of the changes to \texttt{hierarchSIR}}
 %-----------------------------------------------------------
 
-The \texttt{SCARCHhierarSIR} model extends the original \texttt{hierarchSIR} in three important ways. First, instead of treating influenza dynamics across U.S.\ states and territories as spatially independent, we now incorporate spatial correlation in the Bayesian hierarchical inference layer. There is no spatial connection (e.g., mobility) between U.S.\ states and territories through the forward-simulating SIR model. So far, inference has proven stable when performed on the nine U.S. states of New England and the Mid Atlantic U.S.\ census regions, but not on all 52 U.S\ states and territories.\\
+The \texttt{SCARCHhierarSIR} model extends the original \texttt{hierarchSIR} in three important ways. First, instead of treating influenza dynamics across U.S.\ states and territories as spatially independent, we now incorporate spatial correlation in the Bayesian hierarchical inference layer. There is no spatial connection (e.g., mobility) between U.S.\ states and territories through the forward-simulating SIR model.\\
 
 Second, forward simulations are performed using \texttt{diffrax} in \texttt{Python} (v3), which enables multi-threaded batching of simulations across U.S.\ states and territories and seasons using \texttt{jax} just-in-time compilation. The Bayesian inference layer is implemented in \texttt{pyMC} (v5). We constructed a boilerplate to provide the Bayesian \texttt{pyMC} model with gradients of the forward simulating model. This enables the use of efficient exploration of the posterior using the ``No U-Turn Sampler" (NUTS).\\
 
@@ -204,7 +204,7 @@ Third, the dominant innovation is the time-varying transmission modifier is now 
 \section{Preliminary Training results}
 %-----------------------------------------------------------
 
-The model was trained the NHSN HRD lab-confirmed hospital admissions for influenza from the 2023--2024, 2024--2025, and 2025--2026 season, from a subset of 9 U.S\ states belonging to the New England and Mid-Atlantic census regions. Six independent chains were run for 250 iterations, with the first 50 samples discarded as burn-in. Sampling took 12 hours on an M3 Pro chip (12 cores).\\
+The model was trained the NHSN HRD lab-confirmed hospital admissions for influenza from the 2023--2024, 2024--2025, and 2025--2026 season, in 52 U.S\ states and territories. Eight independent chains were run for 250 iterations, with the first 50 samples discarded as burn-in. Sampling took 48 hours on an M3 Pro chip (12c).\\
 
 Figure~\ref{fig:CT_2025-2026_goodness-fit} shows the model's output for Connecticut in the 2025--2026 season after training. Most notably, during January and February 2026 the transmission modifiers were significantly below their seasonal mean (second and third panels). The shocks needed to drive the modifiers away from their season mean inflate the system's variance (fourth and fifth panels), showing the mechanism characterizing the AR(1)-GARCH(1,1) dynamics. \\
 
