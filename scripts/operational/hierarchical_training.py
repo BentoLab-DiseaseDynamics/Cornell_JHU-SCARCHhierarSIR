@@ -503,12 +503,23 @@ def run_training():
 
         # pairplots of alpha_inv and omega per U.S. state or territory
         os.makedirs(os.path.join(output_folder,'traces/pairplots'), exist_ok=True)
-        samples_alpha_inv = trace.posterior['alpha_inv'].stack(sample=("chain", "draw"))
-        samples_omega_state = trace.posterior['omega_state'].stack(sample=("chain", "draw"))
-        states = samples_alpha_inv["state"].values
+        x = trace.posterior['alpha_inv'].stack(sample=("chain", "draw"))
+        y = trace.posterior['omega_state'].stack(sample=("chain", "draw"))
+        states = x["state"].values
         for state in states:
             fig,ax=plt.subplots(figsize=(8.3/2, 11.7/4))
-            ax.scatter(samples_alpha_inv.sel(state=state), samples_omega_state.sel(state=state), marker='o', color='black', alpha=0.05)
+            ax.scatter(x.sel(state=state), y.sel(state=state), marker='o', color='black', alpha=0.05)
+            # add regression
+            res = linregress(x.sel(state=state), y.sel(state=state))
+            xx = np.array([x.sel(state=state).min(), x.sel(state=state).max()])
+            ax.plot(xx, res.intercept + res.slope * xx, color="red")
+            text = (
+                f"Slope = {res.slope:.3f}\n"
+                f"Intercept = {res.intercept:.3f}\n"
+                f"$R^2$ = {res.rvalue**2:.3f}\n"
+                f"$p$ = {res.pvalue:.2e}"
+                )
+            ax.text(0.05, 0.95, text, transform=ax.transAxes, ha="left", va="top", fontsize=5, bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
             ax.set_xlabel(r'$1/\alpha_i$')
             ax.set_ylabel(r'$\omega_i$')
             ax.set_title(f'{state}')
@@ -516,6 +527,29 @@ def run_training():
             plt.savefig(os.path.join(output_folder,f'traces/pairplots/pairplot-alpha_omega-{state}.pdf'))
             plt.close()
 
+
+        # pairplot of a_garch and omega
+        x = trace.posterior['a_garch'].stack(sample=("chain", "draw"))
+        y = trace.posterior['omega_global_mean'].stack(sample=("chain", "draw"))
+        fig,ax=plt.subplots(figsize=(8.3/2, 11.7/4))
+        ax.scatter(x, y, marker='o', color='black', alpha=0.05)
+        # add regression
+        res = linregress(x, y)
+        xx = np.array([x.min(), x.max()])
+        ax.plot(xx, res.intercept + res.slope * xx, color="red")
+        text = (
+            f"Slope = {res.slope:.3f}\n"
+            f"Intercept = {res.intercept:.3f}\n"
+            f"$R^2$ = {res.rvalue**2:.3f}\n"
+            f"$p$ = {res.pvalue:.2e}"
+            )
+        ax.text(0.05, 0.95, text, transform=ax.transAxes, ha="left", va="top", fontsize=5, bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
+        ax.set_xlabel(r'$\alpha_{garch}$')
+        ax.set_ylabel(r'$\omega_{global}$')
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_folder,f'traces/pairplots/pairplot-a_garch_omega_global_mean.pdf'))
+        plt.close()
+        
 
         # forestplot of alpha_inv
         fig,ax=plt.subplots(figsize=(8.3/3*2, 11.7))
