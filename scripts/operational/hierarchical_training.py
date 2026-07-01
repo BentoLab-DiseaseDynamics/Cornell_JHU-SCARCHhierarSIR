@@ -500,8 +500,22 @@ def run_training():
                 plt.savefig(os.path.join(output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/{season}_goodness-fit.pdf'))
                 plt.close()
 
+
         # pairplots of alpha_inv and omega per U.S. state or territory
-        
+        os.makedirs(os.path.join(output_folder,'traces/pairplots'), exist_ok=True)
+        samples_alpha_inv = trace.posterior['alpha_inv'].stack(sample=("chain", "draw"))
+        samples_omega_state = trace.posterior['omega_state'].stack(sample=("chain", "draw"))
+        states = samples_alpha_inv["state"].values
+        for state in states:
+            fig,ax=plt.subplots(figsize=(8.3/2, 11.7/4))
+            ax.scatter(samples_alpha_inv.sel(state=state), samples_omega_state.sel(state=state), marker='o', color='black', alpha=0.05)
+            ax.set_xlabel(r'$1/\alpha_i$')
+            ax.set_ylabel(r'$\omega_i$')
+            ax.set_title(f'{state}')
+            plt.tight_layout()
+            plt.savefig(os.path.join(output_folder,f'traces/pairplots/pairplot-alpha_omega-{state}.pdf'))
+            plt.close()
+
 
         # forestplot of alpha_inv
         fig,ax=plt.subplots(figsize=(8.3/3*2, 11.7))
@@ -531,8 +545,10 @@ def run_training():
         # cleanup
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+        plt.tight_layout()
         plt.savefig(os.path.join(output_folder,f'traces/forestplot-alpha_inv.pdf'))
         plt.close()
+
 
         # visualise forest plots of state and season effect sizes
         labels_params = [r'$\rho$', r'$f_I$', r'$f_R$', r'$\phi$', r'$\omega$']
