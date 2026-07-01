@@ -500,6 +500,39 @@ def run_training():
                 plt.savefig(os.path.join(output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/{season}_goodness-fit.pdf'))
                 plt.close()
 
+        # pairplots of alpha_inv and omega per U.S. state or territory
+        
+
+        # forestplot of alpha_inv
+        fig,ax=plt.subplots(figsize=(8.3/3*2, 11.7))
+        samples = trace.posterior['alpha_inv'].stack(sample=("chain", "draw"))
+        # compute median and 50% & 95% HDI
+        median = samples.median(dim="sample").values
+        hdi = arviz.hdi(samples, prob=0.95, dim="sample")
+        lower_95 = hdi.sel(ci_bound="lower").values
+        upper_95 = hdi.sel(ci_bound="upper").values
+        hdi = arviz.hdi(samples, prob=0.50, dim="sample")
+        lower_75 = hdi.sel(ci_bound="lower").values
+        upper_75 = hdi.sel(ci_bound="upper").values
+        # labels
+        states = samples["state"].values
+        # y positions
+        y = np.arange(len(states))
+        # horizontal intervals
+        ax.hlines(y, lower_75, upper_75, linewidth=3, color='forestgreen')
+        ax.hlines(y, lower_95, upper_95, linewidth=1, color='forestgreen')
+        # median points
+        ax.plot(median, y, "o", color='black', markerfacecolor='white', markersize=3)
+        # formatting
+        ax.set_yticks(y)
+        ax.set_yticklabels(states)
+        ax.invert_yaxis()
+        ax.set_title(r"$1/\alpha_i$ by U.S. state or territory", fontsize=12)
+        # cleanup
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        plt.savefig(os.path.join(output_folder,f'traces/forestplot-alpha_inv.pdf'))
+        plt.close()
 
         # visualise forest plots of state and season effect sizes
         labels_params = [r'$\rho$', r'$f_I$', r'$f_R$', r'$\phi$', r'$\omega$']
