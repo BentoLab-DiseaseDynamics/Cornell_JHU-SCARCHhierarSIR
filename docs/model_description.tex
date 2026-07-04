@@ -172,8 +172,10 @@ To match the forward simulation to the observed data, we employ a weighted Negat
 \end{equation}
 where $p(y \given \mu, \alpha^{-1})$ is the negative binomial probability mass function with mean $\mu$ and overdispersion parameter $\alpha^{-1}$. We allow the overdispersion to vary by state,
 \begin{equation}
-    \alpha^{-1}_j \sim \Lognormal\!\left(\log(0.0025),\ 1/25\right).
+    \alpha^{-1}_j \sim \HalfNormal\! \left( 0.003/3 \right),
 \end{equation}
+where the halfnormal prior shrinks the negative binomial to a Poisson distribution, with the weight of $\sigma=0.001$ determined on a trial-and-error basis by assessing the coverage of the 95~\% confidence interval on the training data.\\
+
 The season-state weights $w_{i,j}$ normalize all observed time series so that no single large-epidemic season or high-burden state dominates the likelihood,
 \begin{equation}
     w_{i,j} = \frac{\left[ \text{mean}_{\{t\}} \big( \sqrt{y_{i,j}(t)}\, \big) \right]^{-1}}{\dfrac{1}{|\bm{S}| \cdot |\bm{T}|} \displaystyle\sum_{i'}\sum_{j'}  \left[ \text{mean}_{\{t\}} \big( \sqrt{y_{i',j'}(t)}\, \big) \right]^{-1}},
