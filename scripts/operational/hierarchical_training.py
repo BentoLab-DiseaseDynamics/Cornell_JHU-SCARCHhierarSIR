@@ -267,7 +267,7 @@ def run_training():
             # ------- AR-GARCH modifiers -----------
 
             # Spatial correlation
-            psi_1 = 0.01 + 0.99*pm.Beta("psi_1", 3, 3) # always had one chain getting stuck at exactly 0
+            psi_1 = 1e-5 + (1-1e-5)*pm.Beta("psi_1", 3, 3) # always had one chain getting stuck at exactly 0
             psi_2 = pm.Beta("psi_2", 3, 3)
 
             I = pt.eye(n_states)
@@ -359,7 +359,7 @@ def run_training():
             ys = pt.math.softplus(ys)
 
             # Compute likelihood
-            alpha_inv = pm.LogNormal("alpha_inv", mu=pt.log(0.0025), sigma=1/5, dims="state")
+            alpha_inv = pm.HalfNormal("alpha_inv", sigma=0.003/3, dims="state")
             pm.CustomDist("data", ys, 1/alpha_inv, weights, logp=weighted_nb_logp, random=weighted_nb_random, observed=7*data)
 
         # Sample pyMC model
@@ -594,7 +594,7 @@ def run_training():
 
         for n, p_state, p_season, g, p, e in zip(labels_params, state_params, season_params, global_params, params, effect_type):
 
-            fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(11.7, 8.3),
+            fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8.3, 11.7),
                                     gridspec_kw={'height_ratios': [1, 3], 'width_ratios': [1, 1]})
             
             # ---- Top row: global effect, spanning both columns ----
