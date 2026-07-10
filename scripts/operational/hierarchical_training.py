@@ -42,7 +42,7 @@ def run_training():
 
     # global parameters go here
     ## model-structural
-    a_garch = 0.0
+    a_garch = None
     b_garch = 0.0
     gamma = 1/3.5
     n_modifiers = 32
@@ -58,7 +58,7 @@ def run_training():
     n_chains = 8
     n_sample = 50
     n_burn = 0
-    training_name = f'exclude_None-a_garch_{a_garch:.1f}-b_garch_{b_garch:.1f}'
+    training_name = f'exclude_None-a_garch_{a_garch}-b_garch_{b_garch}'
     n_preoptim = 1000
     ## use previous sampling
     cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
