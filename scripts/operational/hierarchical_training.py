@@ -17,6 +17,7 @@ import pandas as pd
 import multiprocessing as mp
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from scipy.stats import linregress
 from datetime import datetime, timedelta
 # pyMC / pytensor
 import pymc as pm
@@ -41,6 +42,7 @@ def run_training():
 
     # global parameters go here
     ## model-structural
+    a_garch = 0.0
     b_garch = 0.0
     gamma = 1/3.5
     n_modifiers = 32
@@ -54,12 +56,12 @@ def run_training():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 30
+    n_sample = 50
     n_burn = 0
-    training_name = 'exclude_None-b_garch_0.00'
+    training_name = f'exclude_None-a_garch_{a_garch:.1f}-b_garch_{b_garch:.1f}'
     n_preoptim = 1000
     ## use previous sampling
-    cont_sampling = False   # To continue sampling, the number of chains and the observed data must match!
+    cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
 
     ## save model-structural parameters and training metadata
     output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
@@ -291,10 +293,10 @@ def run_training():
             eps_0 = pt.zeros([n_seasons, n_states])
             # Total AR persistence
             ## global
-            logit_phi_global_mean = pm.Normal("logit_phi_global_mean", mu=0, sigma=1)
+            logit_phi_global_mean = pm.Normal("logit_phi_global_mean", mu=0, sigma=1)      # --> use something informative putting mass between 0.2-0.4 like mu=logit(0.3) with sigma=0.3
             phi_global_mean = pm.Deterministic("phi_global_mean", pm.math.sigmoid(logit_phi_global_mean))
             ## state
-            phi_state_sd = pm.HalfNormal("phi_state_sd", sigma=1/5)
+            phi_state_sd = pm.HalfNormal("phi_state_sd", sigma=1/5)     # --> tighten to 1/10
             phi_state_raw = pm.Normal("phi_state_raw", 0, 1, dims="state")
             phi_state = pm.Deterministic("phi_state", pt.exp(phi_state_sd * phi_state_raw), dims="state")
             ### season
@@ -327,8 +329,10 @@ def run_training():
             log_omega = log_omega_global_mean + omega_state_sd * omega_state_raw[None, :] + omega_season_sd * omega_season_raw[:, None]
             omega = pm.Deterministic("omega", pt.exp(log_omega), dims=("season", "state")) 
             ## alpha and beta
-            logit_a_garch = pm.Normal("logit_a_garch", mu=0, sigma=1)
-            a_garch = pm.Deterministic("a_garch", pm.math.sigmoid(logit_a_garch))
+            if a_garch:
+                a_garch = pm.Deterministic("a_garch", pt.as_tensor_variable(0.0))
+            else:
+                a_garch = pm.Beta("a_garch",alpha=1, beta=5)    # --> baseline assumption: no volatility clustering
             b_garch = pm.Deterministic("b_garch", pt.as_tensor_variable(b_garch))
             # Initial noise   
             sigma2_0 = pm.Deterministic("sigma2_0", omega, dims=("season", "state"))
@@ -383,7 +387,7 @@ def run_training():
             trace = pm.sample(n_sample, tune=0, chains=n_chains, progressbar=True,
                             cores=n_chains, init='adapt_diag', step = step,
                             mp_ctx=mp.get_context("spawn"), initvals=initvals)
-        
+
         print('\n..finished sampling\n')
         print('\nsaving traces\n')
 
@@ -447,7 +451,7 @@ def run_training():
             res = linregress(x.sel(state=state), y.sel(state=state))
             xx = np.array([x.sel(state=state).min(), x.sel(state=state).max()])
             ax.plot(xx, res.intercept + res.slope * xx, color="red")
-            text = (f"\n$R^2$ = {res.rvalue**2:.3f}\n")
+            text = (f"$R^2$ = {res.rvalue**2:.3f}")
             ax.text(0.05, 0.95, text, transform=ax.transAxes, ha="left", va="top", fontsize=5, bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
             ax.set_xlabel(r'$1/\alpha_i$')
             ax.set_ylabel(r'$\omega_i$')
