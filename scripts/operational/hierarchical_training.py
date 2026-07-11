@@ -42,21 +42,21 @@ def run_training():
 
     # global parameters go here
     ## model-structural
-    a_garch = None
+    a_garch = 0.0
     b_garch = 0.0
     gamma = 1/3.5
     n_modifiers = 32
     modifier_length = 7
-    start_simulation = -15 # (October 1)
+    start_simulation = 0 # (October 1)
     modifier_ref_month = 10
-    modifier_ref_day = 15
+    modifier_ref_day = 1
     clustering_name = 'all'
     ## temporal extent of training
     n_observations = 35             # run until start of June
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 50
+    n_sample = 25
     n_burn = 0
     training_name = f'exclude_None-a_garch_{a_garch}-b_garch_{b_garch}'
     n_preoptim = 1000
@@ -329,8 +329,8 @@ def run_training():
             log_omega = log_omega_global_mean + omega_state_sd * omega_state_raw[None, :] + omega_season_sd * omega_season_raw[:, None]
             omega = pm.Deterministic("omega", pt.exp(log_omega), dims=("season", "state")) 
             ## alpha and beta
-            if a_garch:
-                a_garch = pm.Deterministic("a_garch", pt.as_tensor_variable(0.0))
+            if a_garch is not None:
+                a_garch = pm.Deterministic("a_garch", pt.as_tensor_variable(a_garch))
             else:
                 a_garch = pm.Beta("a_garch",alpha=1, beta=5)    # --> baseline assumption: no volatility clustering
             b_garch = pm.Deterministic("b_garch", pt.as_tensor_variable(b_garch))
@@ -363,7 +363,7 @@ def run_training():
             ys = pt.math.softplus(ys)
 
             # Compute likelihood
-            alpha_inv = pm.HalfNormal("alpha_inv", sigma=0.003/3, dims="state")
+            alpha_inv = pm.HalfNormal("alpha_inv", sigma=0.002/3, dims="state")
             pm.CustomDist("data", ys, 1/alpha_inv, weights, logp=weighted_nb_logp, random=weighted_nb_random, observed=7*data)
 
         # Sample pyMC model
