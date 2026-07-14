@@ -114,6 +114,37 @@ def run_training():
         reference_date, data, dt, ts, n_observations = get_NHSN_HRD_data(start_calibrations, modifier_reference_dates, n_observations, forecast_horizon=None, state_fips=state_fips_index['fips_state'].values) # (n_season, n_variables, n_observations)
         data = data / 7 # divide weekly incidence by 7
 
+        # Outlier detection
+        # ~~~~~~~~~~~~~~~~~
+
+        from pygam import LinearGAM, s
+        for season in range(data.shape[0]):
+            for i,state in enumerate(range(data.shape[1])):
+
+                ts = data[season,state,:]
+
+                y = np.log1p(np.asarray(ts))
+                x = np.arange(len(ts))
+
+                gam = LinearGAM(s(0), lam=0.05).fit(x[:, None], y)
+
+                trend = gam.predict(x[:, None])
+                confint = gam.confidence_intervals(x[:, None], width=0.9994)
+
+                outliers = (y < confint[:, 0]) | (y > confint[:, 1])
+
+                # fig,ax=plt.subplots()
+                # ax.set_title(state_fips_index.iloc[i]['abbreviation_state'])
+                # ax.scatter(dt[season], np.expm1(y), marker='o', facecolors='none', color='black')
+                # ax.plot(dt[season], np.expm1(trend), color='green')
+                # ax.fill_between(dt[season], np.expm1(confint[:,0]), np.expm1(confint[:,1]), color='green', alpha=0.15)
+                # ax.scatter(dt[season][outliers], np.expm1(y[outliers]), marker='x', color='red')
+                # plt.show()
+                # plt.close()
+
+                y[outliers] = trend[outliers]
+                data[season, state, :] = np.expm1(y)
+
         # TODO: assert if there's nan in data
 
         # Define a jax-jitted diffrax differential equation model
