@@ -52,7 +52,7 @@ def run_training():
     modifier_ref_day = 1
     clustering_name = 'all'
     ## temporal extent of training
-    n_observations = 35             # run until start of June
+    n_observations = 35             # run until start of May
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
@@ -121,10 +121,10 @@ def run_training():
         for season in range(data.shape[0]):
             for i,state in enumerate(range(data.shape[1])):
 
-                ts = data[season,state,:]
+                d = data[season,state,:]
 
-                y = np.log1p(np.asarray(ts))
-                x = np.arange(len(ts))
+                y = np.log1p(np.asarray(d))
+                x = np.arange(len(d))
 
                 gam = LinearGAM(s(0), lam=0.05).fit(x[:, None], y)
 
@@ -211,7 +211,7 @@ def run_training():
                 'log_rho_global_mean': init["log_rho"]["global"], 'rho_state_sd': 0.2, 'rho_state_raw': init["log_rho"]["state"] / 0.2, 'rho_season_sd': 0.2, 'rho_season_raw': init["log_rho"]["season"] / 0.2,
                 'log_fI_global_mean': init["log_fI"]["global"], 'fI_state_sd': 0.2, 'fI_state_raw': init["log_fI"]["state"] / 0.2, 'fI_season_sd': 0.2, 'fI_season_raw': init["log_fI"]["season"] / 0.2,
                 'logit_fR_global_mean': init["logit_fR"]["global"], 'fR_state_sd': 0.2, 'fR_state_raw': init["logit_fR"]["state"] / 0.2, 'fR_season_sd': 0.2, 'fR_season_raw': init["logit_fR"]["season"] / 0.2,
-                'logit_phi_global_mean': 0.50, 'log_omega_global_mean': pt.log(0.05/3), 'omega_global_mean_shrinkage': 0.05/3}]
+                'phi': 0.50, 'log_omega_global_mean': pt.log(0.05/3), 'omega_global_mean_shrinkage': 0.05/3}]
 
         print('\nparameter hierarchy reconstruction\n')
 
@@ -323,20 +323,7 @@ def run_training():
             z_0 = pt.zeros([n_seasons, n_states])
             eps_0 = pt.zeros([n_seasons, n_states])
             # Total AR persistence
-            ## global
-            logit_phi_global_mean = pm.Normal("logit_phi_global_mean", mu=0, sigma=1)      # --> use something informative putting mass between 0.2-0.4 like mu=logit(0.3) with sigma=0.3
-            phi_global_mean = pm.Deterministic("phi_global_mean", pm.math.sigmoid(logit_phi_global_mean))
-            ## state
-            phi_state_sd = pm.HalfNormal("phi_state_sd", sigma=1/5)     # --> tighten to 1/10
-            phi_state_raw = pm.Normal("phi_state_raw", 0, 1, dims="state")
-            phi_state = pm.Deterministic("phi_state", pt.exp(phi_state_sd * phi_state_raw), dims="state")
-            ### season
-            phi_season_sd = pm.HalfNormal("phi_season_sd", sigma=1/5)
-            phi_season_raw = pm.Normal("phi_season_raw", 0, 1, dims="season")
-            phi_season = pm.Deterministic("phi_season", pt.exp(phi_season_sd * phi_season_raw), dims="season")
-            phi = pm.Deterministic("phi",
-                                   pm.math.sigmoid(logit_phi_global_mean + phi_state_sd * phi_state_raw[None, :] + phi_season_sd * phi_season_raw[:, None]),
-                                   dims=("season", "state"))
+            phi = pm.Beta("phi", alpha=10, beta=10)
 
             # sample iid standard normals as shocks
             eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, shape=(n_modifiers-1, n_seasons, n_states))
@@ -444,7 +431,7 @@ def run_training():
                         'fR_global_mean', 'fR_state_sd', 'fR_state', 'fR_season_sd', 'fR_season', 'fR',         # fR
                         'delta_beta_state_mean',                                                                # delta_beta_mu
                         'psi_2', 'psi_1',                                                                       # spatial correlation strength
-                        'phi_global_mean', 'phi_state_sd', 'phi_season_sd', 'phi',                              # AR 
+                        'phi',                                                                                  # AR 
                         'omega_global_mean', 'omega_state_sd', 'omega_state', 'omega_season_sd', 'omega_season', 'omega', # GARCH(1,0) parameters
                         'omega_global_mean_shrinkage',
                         'a_garch', 'b_garch', 'sigma2_0',
@@ -496,7 +483,7 @@ def run_training():
         # pairplot of a_garch, omega_global and phi_global
         x1 = trace.posterior['a_garch'].stack(sample=("chain", "draw"))
         x2 = trace.posterior['omega_global_mean'].stack(sample=("chain", "draw"))
-        x3 = trace.posterior['phi_global_mean'].stack(sample=("chain", "draw"))
+        x3 = trace.posterior['phi'].stack(sample=("chain", "draw"))
 
         fig,ax=plt.subplots(figsize=(8.3, 11.7/2), nrows=2, ncols=2)
 
@@ -507,7 +494,7 @@ def run_training():
             ax[0,0].plot(xx, res.intercept + res.slope * xx, color="red")
             text = (f"$R^2$ = {res.rvalue**2:.3f}")
             ax[0,0].text(0.05, 0.95, text, transform=ax[0,0].transAxes, ha="left", va="top", fontsize=12, bbox=dict(boxstyle="round", facecolor="white", alpha=1))
-        ax[0,0].set_ylabel(r'$\phi_{global}$')
+        ax[0,0].set_ylabel(r'$\phi$')
 
         ax[1,0].scatter(x1, x2, marker='o', color='black', alpha=0.05)
         if a_garch is None:
@@ -531,7 +518,7 @@ def run_training():
         fig.delaxes(ax[0,1])
 
         plt.tight_layout()
-        plt.savefig(os.path.join(output_folder,f'traces/pairplots/pairplot-a_garch-omega_global_mean-phi_global_mean.pdf'))
+        plt.savefig(os.path.join(output_folder,f'traces/pairplots/pairplot-a_garch-omega_global_mean-phi.pdf'))
         plt.close()
         
 
@@ -569,12 +556,12 @@ def run_training():
 
 
         # visualise forest plots of state and season effect sizes
-        labels_params = [r'$\rho$', r'$f_I$', r'$f_R$', r'$\phi$', r'$\omega$']
-        state_params = ["rho_state", "fI_state", "fR_state", "phi_state", "omega_state"]
-        season_params = ["rho_season", "fI_season", "fR_season", "phi_season", "omega_season"]
-        global_params = ["rho_global_mean", "fI_global_mean", "fR_global_mean", "phi_global_mean", "omega_global_mean"]
+        labels_params = [r'$\rho$', r'$f_I$', r'$f_R$', r'$\omega$']
+        state_params = ["rho_state", "fI_state", "fR_state", "omega_state"]
+        season_params = ["rho_season", "fI_season", "fR_season", "omega_season"]
+        global_params = ["rho_global_mean", "fI_global_mean", "fR_global_mean", "omega_global_mean"]
         params = ['rho', 'fI', 'fR', 'phi', 'omega']
-        effect_type = ['Multiplicative', 'Multiplicative', 'Odds-ratio', 'Odds-ratio', 'Multiplicative']
+        effect_type = ['Multiplicative', 'Multiplicative', 'Odds-ratio', 'Multiplicative']
 
         for n, p_state, p_season, g, p, e in zip(labels_params, state_params, season_params, global_params, params, effect_type):
 
@@ -749,7 +736,7 @@ def run_training():
             "fR_season_sd",
             "psi_1",    
             "psi_2",
-            "phi_global_mean",
+            "phi",
             "phi_season_sd",
             "omega_global_mean",
             "omega_season_sd",
@@ -765,7 +752,6 @@ def run_training():
             "rho_state",
             "fI_state",
             "fR_state",
-            "phi_state",
             "omega_state",
         ]
         for p in state_params:
