@@ -776,7 +776,7 @@ def run_training():
 
     # concatenate all hyperparameters and save them
     output = pd.concat(hyperparameters, axis=0)
-    output.to_csv(os.path.join(output_folder,'..',f"hyperparameters-{training_name}.csv"))
+    output.to_csv(os.path.join(output_folder,f"hyperparameters-{training_name}.csv"))
 
     print(f'\ntraining complete!\n')
 
