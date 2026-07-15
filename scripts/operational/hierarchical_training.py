@@ -323,7 +323,7 @@ def run_training():
             z_0 = pt.zeros([n_seasons, n_states])
             eps_0 = pt.zeros([n_seasons, n_states])
             # Total AR persistence
-            phi = pm.Beta("phi", alpha=10, beta=10)
+            phi = pm.Beta("phi", alpha=25, beta=25)
 
             # sample iid standard normals as shocks
             eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, shape=(n_modifiers-1, n_seasons, n_states))
