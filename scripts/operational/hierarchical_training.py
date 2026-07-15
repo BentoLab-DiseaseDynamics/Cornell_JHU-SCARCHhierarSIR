@@ -480,7 +480,7 @@ def run_training():
             plt.close()
 
 
-        # pairplot of a_garch, omega_global and phi_global
+        # pairplot of a_garch, omega_global and phi
         x1 = trace.posterior['a_garch'].stack(sample=("chain", "draw"))
         x2 = trace.posterior['omega_global_mean'].stack(sample=("chain", "draw"))
         x3 = trace.posterior['phi'].stack(sample=("chain", "draw"))
@@ -513,7 +513,7 @@ def run_training():
             ax[1,1].plot(xx, res.intercept + res.slope * xx, color="red")
             text = (f"$R^2$ = {res.rvalue**2:.3f}")
             ax[1,1].text(0.05, 0.95, text, transform=ax[1,1].transAxes, ha="left", va="top", fontsize=12, bbox=dict(boxstyle="round", facecolor="white", alpha=1))
-        ax[1,1].set_xlabel(r'$\phi_{global}$')
+        ax[1,1].set_xlabel(r'$\phi$')
 
         fig.delaxes(ax[0,1])
 
@@ -737,7 +737,6 @@ def run_training():
             "psi_1",    
             "psi_2",
             "phi",
-            "phi_season_sd",
             "omega_global_mean",
             "omega_season_sd",
             "a_garch",
