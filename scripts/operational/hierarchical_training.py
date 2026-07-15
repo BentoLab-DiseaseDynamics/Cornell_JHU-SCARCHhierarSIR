@@ -326,7 +326,7 @@ def run_training():
             # --- AR(1) Regime Dynamic ---
             # Persistence of the regime itself (how long do we stay in a spike/drift phase?)
             phi_regime = pm.Beta("phi_regime", alpha=3, beta=1) # biased toward holding state
-            sigma_regime = pm.HalfNormal("sigma_regime", sigma=0.25)
+            sigma_regime = pm.HalfNormal("sigma_regime", sigma=1)
             # Standard normal innovations for the regime evolution
             regime_shocks = pm.Normal("regime_shocks", 0, 1, shape=(n_modifiers-1, n_seasons, n_states))
             # Initialize the latent regime variable at its equilibrium (0.0 -> sigmoid(0) = 0.5)
@@ -789,7 +789,7 @@ def run_training():
 
     # concatenate all hyperparameters and save them
     output = pd.concat(hyperparameters, axis=0)
-    output.to_csv(os.path.join(cluster_output_folder,'..',f"hyperparameters-{training_name}.csv"))
+    output.to_csv(os.path.join(output_folder,'..',f"hyperparameters-{training_name}.csv"))
 
     print(f'\ntraining complete!\n')
 
