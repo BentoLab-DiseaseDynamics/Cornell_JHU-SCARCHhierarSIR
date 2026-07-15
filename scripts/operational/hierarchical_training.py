@@ -95,7 +95,7 @@ def run_training():
 
         print(f'states in cluster: {clusters[clusters[clustering_name] == cluster_idx]['abbreviation_state'].values.tolist()}\n')
 
-        output_folder = os.path.join(output_folder, f'cluster_{cluster_idx}')
+        cluster_output_folder = os.path.join(output_folder, f'cluster_{cluster_idx}')
 
         # Get US demographics
         # ~~~~~~~~~~~~~~~~~~~
@@ -199,8 +199,8 @@ def run_training():
                 ax.scatter(dt[i, :], 7*data[i, s, :], marker='o', color='black', label='obs')
             fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
             fig.tight_layout()
-            os.makedirs(os.path.join(output_folder, 'initial-optim'), exist_ok=True)
-            plt.savefig(os.path.join(output_folder,f'initial-optim/state_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
+            os.makedirs(os.path.join(cluster_output_folder, 'initial-optim'), exist_ok=True)
+            plt.savefig(os.path.join(cluster_output_folder,f'initial-optim/state_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
             plt.close(fig)
 
         # compute pyMC initial effect sizes
@@ -410,7 +410,7 @@ def run_training():
         print('\nsaving traces\n')
 
         if not cont_sampling:
-            trace.to_netcdf(os.path.join(output_folder, f"trace.nc"))
+            trace.to_netcdf(os.path.join(cluster_output_folder, f"trace.nc"))
         else:
             combined_trace = concat_traces(prev_trace, trace)
             tmp_path = trace_path + ".tmp"
@@ -438,10 +438,10 @@ def run_training():
                         ]
 
         # Save original traces
-        os.makedirs(os.path.join(output_folder,'traces'), exist_ok=True)
+        os.makedirs(os.path.join(cluster_output_folder,'traces'), exist_ok=True)
         for var in variables2plot:
             arviz.plot_trace_dist(trace, var_names=[var], compact=True, combined=True, kind='kde') 
-            plt.savefig(os.path.join(output_folder,f'traces/trace-{var}.pdf'))
+            plt.savefig(os.path.join(cluster_output_folder,f'traces/trace-{var}.pdf'))
             plt.close()
 
         # Make posterior predictive
@@ -452,13 +452,13 @@ def run_training():
             posterior_predictive = pm.sample_posterior_predictive(trace)
 
         # Save posterior predictive
-        posterior_predictive.to_netcdf(os.path.join(output_folder,"posterior_predictive.nc"))
+        posterior_predictive.to_netcdf(os.path.join(cluster_output_folder,"posterior_predictive.nc"))
 
         # Visualisations
         # ~~~~~~~~~~~~~~
 
         # pairplots of alpha_inv and omega per U.S. state or territory
-        os.makedirs(os.path.join(output_folder,'traces/pairplots'), exist_ok=True)
+        os.makedirs(os.path.join(cluster_output_folder,'traces/pairplots'), exist_ok=True)
         x = trace.posterior['alpha_inv'].stack(sample=("chain", "draw"))
         y = trace.posterior['omega_state'].stack(sample=("chain", "draw"))
         states = x["state"].values
@@ -476,7 +476,7 @@ def run_training():
             ax.set_ylabel(r'$\omega_i$')
             ax.set_title(f'{state}')
             plt.tight_layout()
-            plt.savefig(os.path.join(output_folder,f'traces/pairplots/pairplot-alpha_omega-{state}.pdf'))
+            plt.savefig(os.path.join(cluster_output_folder,f'traces/pairplots/pairplot-alpha_omega-{state}.pdf'))
             plt.close()
 
 
@@ -518,7 +518,7 @@ def run_training():
         fig.delaxes(ax[0,1])
 
         plt.tight_layout()
-        plt.savefig(os.path.join(output_folder,f'traces/pairplots/pairplot-a_garch-omega_global_mean-phi.pdf'))
+        plt.savefig(os.path.join(cluster_output_folder,f'traces/pairplots/pairplot-a_garch-omega_global_mean-phi.pdf'))
         plt.close()
         
 
@@ -551,7 +551,7 @@ def run_training():
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         plt.tight_layout()
-        plt.savefig(os.path.join(output_folder,f'traces/forestplot-alpha_inv.pdf'))
+        plt.savefig(os.path.join(cluster_output_folder,f'traces/forestplot-alpha_inv.pdf'))
         plt.close()
 
 
@@ -649,12 +649,12 @@ def run_training():
             axes[1, 1].spines['right'].set_visible(False)
 
             plt.tight_layout()
-            plt.savefig(os.path.join(output_folder,f'traces/forestplot-{p}.pdf'))
+            plt.savefig(os.path.join(cluster_output_folder,f'traces/forestplot-{p}.pdf'))
             plt.close()
 
 
         # Visualise across-season modifier trend + within-season median per state
-        os.makedirs(os.path.join(output_folder,'modifiers'), exist_ok=True)
+        os.makedirs(os.path.join(cluster_output_folder,'modifiers'), exist_ok=True)
         # make dates
         x = pd.date_range(start=datetime(2000,10,15), periods=n_modifiers, freq='W')
         for s in range(n_states):
@@ -675,13 +675,13 @@ def run_training():
             ax.set_ylim([0.65, 1.35])
             ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%b'))
-            plt.savefig(os.path.join(output_folder,f'modifiers/modifiers_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
+            plt.savefig(os.path.join(cluster_output_folder,f'modifiers/modifiers_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
             plt.close()
 
 
         # Visualise goodness-of-fit, delta_beta, z, sigma2 and eps per state and per season
         for s in range(n_states):
-            os.makedirs(os.path.join(output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/'), exist_ok=True)
+            os.makedirs(os.path.join(cluster_output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/'), exist_ok=True)
             for i, season in enumerate(seasons):
                 
                 fig,ax=plt.subplots(nrows=5, figsize=(8.3, 11.7), sharex=True)
@@ -715,7 +715,7 @@ def run_training():
                             color='black', alpha=0.15)
                     ax[j+1].set_ylabel(par)
                 ax[0].set_title(season)
-                plt.savefig(os.path.join(output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/{season}_goodness-fit.pdf'))
+                plt.savefig(os.path.join(cluster_output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/{season}_goodness-fit.pdf'))
                 plt.close()
 
 
@@ -765,7 +765,7 @@ def run_training():
 
         # save to csv
         df.index.name = "state"
-        df.to_csv(os.path.join(output_folder,f"hyperparameters-{training_name}_cluster-{cluster_idx}.csv"))
+        df.to_csv(os.path.join(cluster_output_folder,f"hyperparameters-{training_name}_cluster-{cluster_idx}.csv"))
 
         # append to output list
         hyperparameters.append(df)
