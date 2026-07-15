@@ -25,13 +25,13 @@ import pytensor
 import pytensor.tensor as pt
 import arviz
 #pytensor.config.cxx = '/usr/bin/clang++'
-#pytensor.config.on_opt_error = "ignore"
+#pytensor.config.on_opt_error = "ignore"ƒa
 # jax and diffrax
 import jax.numpy as jnp
 # model package
 from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data
 from SCARCHhierarSIR.SIR_model import get_jax_jitted_model, make_sol_op
-from SCARCHhierarSIR.pymc_model import AR_GARCH_step, compute_season_weights, weighted_nb_logp, weighted_nb_random, trace_to_initvals, concat_traces
+from SCARCHhierarSIR.pymc_model import compute_season_weights, weighted_nb_logp, weighted_nb_random, trace_to_initvals, concat_traces
 from SCARCHhierarSIR.preoptimization import preoptimize_parameters, compute_initial_effects
 
 # needed to use the 'spawn' multiprocessing context manager
@@ -50,16 +50,16 @@ def run_training():
     start_simulation = 0 # (October 1)
     modifier_ref_month = 10
     modifier_ref_day = 1
-    clustering_name = 'all'
+    clustering_name = 'test'
     ## temporal extent of training
     n_observations = 35             # run until start of May
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 25
+    n_sample = 2
     n_burn = 0
     training_name = f'exclude_None-a_garch_{a_garch}-b_garch_{b_garch}'
-    n_preoptim = 1000
+    n_preoptim = 200
     ## use previous sampling
     cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
 
@@ -95,7 +95,7 @@ def run_training():
 
         print(f'states in cluster: {clusters[clusters[clustering_name] == cluster_idx]['abbreviation_state'].values.tolist()}\n')
 
-        output_folder = os.path.join(output_folder, f'cluster_{cluster_idx}')
+        cluster_output_folder = os.path.join(output_folder, f'cluster_{cluster_idx}')
 
         # Get US demographics
         # ~~~~~~~~~~~~~~~~~~~
@@ -199,8 +199,8 @@ def run_training():
                 ax.scatter(dt[i, :], 7*data[i, s, :], marker='o', color='black', label='obs')
             fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
             fig.tight_layout()
-            os.makedirs(os.path.join(output_folder, 'initial-optim'), exist_ok=True)
-            plt.savefig(os.path.join(output_folder,f'initial-optim/state_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
+            os.makedirs(os.path.join(cluster_output_folder, 'initial-optim'), exist_ok=True)
+            plt.savefig(os.path.join(cluster_output_folder,f'initial-optim/state_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
             plt.close(fig)
 
         # compute pyMC initial effect sizes
@@ -211,7 +211,7 @@ def run_training():
                 'log_rho_global_mean': init["log_rho"]["global"], 'rho_state_sd': 0.2, 'rho_state_raw': init["log_rho"]["state"] / 0.2, 'rho_season_sd': 0.2, 'rho_season_raw': init["log_rho"]["season"] / 0.2,
                 'log_fI_global_mean': init["log_fI"]["global"], 'fI_state_sd': 0.2, 'fI_state_raw': init["log_fI"]["state"] / 0.2, 'fI_season_sd': 0.2, 'fI_season_raw': init["log_fI"]["season"] / 0.2,
                 'logit_fR_global_mean': init["logit_fR"]["global"], 'fR_state_sd': 0.2, 'fR_state_raw': init["logit_fR"]["state"] / 0.2, 'fR_season_sd': 0.2, 'fR_season_raw': init["logit_fR"]["season"] / 0.2,
-                'phi': 0.50, 'log_omega_global_mean': pt.log(0.05/3), 'omega_global_mean_shrinkage': 0.05/3}]
+                'phi_regime': 0.50, 'sigma_regime': 0.50, 'scale_regime_1': 2, 'scale_regime_0': 0.5, 'log_omega_global_mean': pt.log(0.05/3), 'omega_global_mean_shrinkage': 0.05/3}]
 
         print('\nparameter hierarchy reconstruction\n')
 
@@ -243,6 +243,11 @@ def run_training():
             "season": seasons,
             "modifier": np.arange(n_modifiers)
         }
+
+        def ar_step(eta_t, phi_t, sigma2_t, z_prev):
+            innovation_t = pt.sqrt(sigma2_t) * eta_t
+            z_t = phi_t * z_prev + innovation_t
+            return z_t
 
         # Build pyMC probablistic model
         with pm.Model(coords=coords) as model:
@@ -318,20 +323,26 @@ def run_training():
             delta_beta_raw = pm.Normal("delta_beta_raw", 0, 1, dims=("modifier","state"))
             delta_beta_state_mean = pm.Deterministic("delta_beta_state_mean", (1/4) * pt.einsum("ij,mj->mi", L_cov_modifiers, delta_beta_raw), dims=("modifier","state"))
 
-            # --- AR(1) kernel ---
-            # Initial position
-            z_0 = pt.zeros([n_seasons, n_states])
-            eps_0 = pt.zeros([n_seasons, n_states])
-            # Total AR persistence
-            phi = pm.Beta("phi", alpha=10, beta=10)
+            # --- AR(1) Regime Dynamic ---
+            # Persistence of the regime itself (how long do we stay in a spike/drift phase?)
+            phi_regime = pm.Beta("phi_regime", alpha=3, beta=1) # biased toward holding state
+            sigma_regime = pm.HalfNormal("sigma_regime", sigma=0.25)
+            # Standard normal innovations for the regime evolution
+            regime_shocks = pm.Normal("regime_shocks", 0, 1, shape=(n_modifiers-1, n_seasons, n_states))
+            # Initialize the latent regime variable at its equilibrium (0.0 -> sigmoid(0) = 0.5)
+            r_0 = pt.zeros((n_seasons, n_states))
+            r_seq = pytensor.scan(
+                fn=ar_step,
+                sequences=[regime_shocks],
+                outputs_info=[r_0],
+                non_sequences=[phi_regime, sigma_regime**2],
+                return_updates=False
+            )
+            # Transform to the bounded (0, 1) space
+            r_t = pm.Deterministic("r_t", pm.math.sigmoid(pt.concatenate([r_0[None, ...], r_seq])))
+            phi_t = pm.Deterministic("phi_t", 1 - r_t) # regime = 1: spike, regime = 0: drift
 
-            # sample iid standard normals as shocks
-            eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, shape=(n_modifiers-1, n_seasons, n_states))
-            # correlate them across space using the precision matrix
-            eta = pm.Deterministic("eta", pt.einsum("ij,tsj->tsi", L_cov_shocks, eta_raw))
-
-            # --- GARCH(1,0) = ARCH(1) parameters ---    
-            ## baseline noise
+            # --- Baseline volatility --- (= volatility for regime = 0.5)
             ### global
             omega_global_mean_shrinkage = pm.HalfNormal("omega_global_mean_shrinkage", sigma=0.05/3)
             log_omega_global_mean = pm.Normal("log_omega_global_mean", mu=pt.log(omega_global_mean_shrinkage), sigma=1/5)    
@@ -346,33 +357,35 @@ def run_training():
             omega_season = pm.Deterministic("omega_season", pt.exp(omega_season_sd * omega_season_raw), dims="season")
             log_omega = log_omega_global_mean + omega_state_sd * omega_state_raw[None, :] + omega_season_sd * omega_season_raw[:, None]
             omega = pm.Deterministic("omega", pt.exp(log_omega), dims=("season", "state")) 
-            ## alpha and beta
-            if a_garch is not None:
-                a_garch = pm.Deterministic("a_garch", pt.as_tensor_variable(a_garch))
-            else:
-                a_garch = pm.Beta("a_garch",alpha=1, beta=5)    # --> baseline assumption: no volatility clustering
-            b_garch = pm.Deterministic("b_garch", pt.as_tensor_variable(b_garch))
-            # Initial noise   
-            sigma2_0 = pm.Deterministic("sigma2_0", omega, dims=("season", "state"))
 
-            # Run AR-GARCH scan over T steps
-            z_seq, sigma2_seq, eps_seq = pytensor.scan(
-                fn=AR_GARCH_step,
-                sequences=[eta,],
-                outputs_info=[z_0, sigma2_0, eps_0],
-                non_sequences=[phi, omega, a_garch, b_garch],
+            # --- Time-varying blended volatility ---
+            # Calibrate Volatility Multipliers of each regime
+            scale_regime_0 = pm.HalfNormal("scale_regime_0", sigma=1.0) # Drift mode multiplier
+            scale_regime_1 = pm.HalfNormal("scale_regime_1", sigma=5.0) # Spike mode multiplier
+            
+            # Blend the volatilities over time
+            volatility_multiplier_t = r_t * scale_regime_1 + (1 - r_t) * scale_regime_0
+            sigma2_t = pm.Deterministic("sigma2_t", omega[None, ...] * volatility_multiplier_t)
+
+            # --- Spatially correlated innovations ---
+            eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, shape=(n_modifiers-1, n_seasons, n_states))
+            eta_t = pt.einsum("ij,tsj->tsi", L_cov_shocks, eta_raw)
+
+            # Step function
+            z_0 = pt.zeros((n_seasons, n_states))
+            z_seq = pytensor.scan(
+                fn=ar_step,
+                sequences=[eta_t, phi_t, sigma2_t],
+                outputs_info=[z_0],
+                non_sequences=[],
                 return_updates=False
             )
-
-            # Register deterministic variables to inspect later
-            z = pm.Deterministic("z", pt.concatenate([z_0[None, ...], z_seq], axis=0))  # prepend initial condition
-            sigma2 = pm.Deterministic("sigma2", pt.concatenate([sigma2_0[None, ...], sigma2_seq], axis=0))
-            eps = pm.Deterministic("eps", pt.concatenate([eps_0[None, ...], eps_seq], axis=0))
-            delta_beta = pm.Deterministic("delta_beta", z + delta_beta_state_mean[:, None, :])
+            z_t = pm.Deterministic("z_t", pt.concatenate([z_0[None, ...], z_seq], axis=0))  # prepend initial condition
+            delta_beta_t = pm.Deterministic("delta_beta_t", z_t + delta_beta_state_mean[:, None, :])
 
             # concatenate parameters along the last axis
             args_diff = pt.concatenate(
-                [beta[:, :, None], rho[:, :, None], fI[:, :, None], fR[:, :, None], pt.transpose(delta_beta, (1, 2, 0))],
+                [beta[:, :, None], rho[:, :, None], fI[:, :, None], fR[:, :, None], pt.transpose(delta_beta_t, (1, 2, 0))],
                 axis=2
             )
 
@@ -410,7 +423,7 @@ def run_training():
         print('\nsaving traces\n')
 
         if not cont_sampling:
-            trace.to_netcdf(os.path.join(output_folder, f"trace.nc"))
+            trace.to_netcdf(os.path.join(cluster_output_folder, f"trace.nc"))
         else:
             combined_trace = concat_traces(prev_trace, trace)
             tmp_path = trace_path + ".tmp"
@@ -430,18 +443,17 @@ def run_training():
                         'fI_global_mean', 'fI_state_sd', 'fI_state', 'fI_season_sd', 'fI_season', 'fI',         # fI
                         'fR_global_mean', 'fR_state_sd', 'fR_state', 'fR_season_sd', 'fR_season', 'fR',         # fR
                         'delta_beta_state_mean',                                                                # delta_beta_mu
-                        'psi_2', 'psi_1',                                                                       # spatial correlation strength
-                        'phi',                                                                                  # AR 
-                        'omega_global_mean', 'omega_state_sd', 'omega_state', 'omega_season_sd', 'omega_season', 'omega', # GARCH(1,0) parameters
+                        'psi_1', 'psi_2',                                                                       # spatial correlation strength
+                        'phi_regime', 'sigma_regime', 'scale_regime_0', 'scale_regime_1',                       # regime parameters
+                        'omega_global_mean', 'omega_state_sd', 'omega_state', 'omega_season_sd', 'omega_season', 'omega', # baseline volatility
                         'omega_global_mean_shrinkage',
-                        'a_garch', 'b_garch', 'sigma2_0',
                         ]
 
         # Save original traces
-        os.makedirs(os.path.join(output_folder,'traces'), exist_ok=True)
+        os.makedirs(os.path.join(cluster_output_folder,'traces'), exist_ok=True)
         for var in variables2plot:
             arviz.plot_trace_dist(trace, var_names=[var], compact=True, combined=True, kind='kde') 
-            plt.savefig(os.path.join(output_folder,f'traces/trace-{var}.pdf'))
+            plt.savefig(os.path.join(cluster_output_folder,f'traces/trace-{var}.pdf'))
             plt.close()
 
         # Make posterior predictive
@@ -452,13 +464,13 @@ def run_training():
             posterior_predictive = pm.sample_posterior_predictive(trace)
 
         # Save posterior predictive
-        posterior_predictive.to_netcdf(os.path.join(output_folder,"posterior_predictive.nc"))
+        posterior_predictive.to_netcdf(os.path.join(cluster_output_folder,"posterior_predictive.nc"))
 
         # Visualisations
         # ~~~~~~~~~~~~~~
 
         # pairplots of alpha_inv and omega per U.S. state or territory
-        os.makedirs(os.path.join(output_folder,'traces/pairplots'), exist_ok=True)
+        os.makedirs(os.path.join(cluster_output_folder,'traces/pairplots'), exist_ok=True)
         x = trace.posterior['alpha_inv'].stack(sample=("chain", "draw"))
         y = trace.posterior['omega_state'].stack(sample=("chain", "draw"))
         states = x["state"].values
@@ -476,50 +488,50 @@ def run_training():
             ax.set_ylabel(r'$\omega_i$')
             ax.set_title(f'{state}')
             plt.tight_layout()
-            plt.savefig(os.path.join(output_folder,f'traces/pairplots/pairplot-alpha_omega-{state}.pdf'))
+            plt.savefig(os.path.join(cluster_output_folder,f'traces/pairplots/pairplot-alpha_omega-{state}.pdf'))
             plt.close()
 
 
-        # pairplot of a_garch, omega_global and phi
-        x1 = trace.posterior['a_garch'].stack(sample=("chain", "draw"))
-        x2 = trace.posterior['omega_global_mean'].stack(sample=("chain", "draw"))
-        x3 = trace.posterior['phi'].stack(sample=("chain", "draw"))
+        # # pairplot of a_garch, omega_global and phi
+        # x1 = trace.posterior['a_garch'].stack(sample=("chain", "draw"))
+        # x2 = trace.posterior['omega_global_mean'].stack(sample=("chain", "draw"))
+        # x3 = trace.posterior['phi'].stack(sample=("chain", "draw"))
 
-        fig,ax=plt.subplots(figsize=(8.3, 11.7/2), nrows=2, ncols=2)
+        # fig,ax=plt.subplots(figsize=(8.3, 11.7/2), nrows=2, ncols=2)
 
-        ax[0,0].scatter(x1, x3, marker='o', color='black', alpha=0.05)
-        if a_garch is None:
-            res = linregress(x1, x3)
-            xx = np.array([x1.min(), x1.max()])
-            ax[0,0].plot(xx, res.intercept + res.slope * xx, color="red")
-            text = (f"$R^2$ = {res.rvalue**2:.3f}")
-            ax[0,0].text(0.05, 0.95, text, transform=ax[0,0].transAxes, ha="left", va="top", fontsize=12, bbox=dict(boxstyle="round", facecolor="white", alpha=1))
-        ax[0,0].set_ylabel(r'$\phi$')
+        # ax[0,0].scatter(x1, x3, marker='o', color='black', alpha=0.05)
+        # if a_garch is None:
+        #     res = linregress(x1, x3)
+        #     xx = np.array([x1.min(), x1.max()])
+        #     ax[0,0].plot(xx, res.intercept + res.slope * xx, color="red")
+        #     text = (f"$R^2$ = {res.rvalue**2:.3f}")
+        #     ax[0,0].text(0.05, 0.95, text, transform=ax[0,0].transAxes, ha="left", va="top", fontsize=12, bbox=dict(boxstyle="round", facecolor="white", alpha=1))
+        # ax[0,0].set_ylabel(r'$\phi$')
 
-        ax[1,0].scatter(x1, x2, marker='o', color='black', alpha=0.05)
-        if a_garch is None:
-            res = linregress(x1, x2)
-            xx = np.array([x1.min(), x1.max()])
-            ax[1,0].plot(xx, res.intercept + res.slope * xx, color="red")
-            text = (f"$R^2$ = {res.rvalue**2:.3f}")
-            ax[1,0].text(0.05, 0.95, text, transform=ax[1,0].transAxes, ha="left", va="top", fontsize=12, bbox=dict(boxstyle="round", facecolor="white", alpha=1))
-        ax[1,0].set_xlabel(r'$\alpha_{GARCH}$')
-        ax[1,0].set_ylabel(r'$\omega_{global}$')
+        # ax[1,0].scatter(x1, x2, marker='o', color='black', alpha=0.05)
+        # if a_garch is None:
+        #     res = linregress(x1, x2)
+        #     xx = np.array([x1.min(), x1.max()])
+        #     ax[1,0].plot(xx, res.intercept + res.slope * xx, color="red")
+        #     text = (f"$R^2$ = {res.rvalue**2:.3f}")
+        #     ax[1,0].text(0.05, 0.95, text, transform=ax[1,0].transAxes, ha="left", va="top", fontsize=12, bbox=dict(boxstyle="round", facecolor="white", alpha=1))
+        # ax[1,0].set_xlabel(r'$\alpha_{GARCH}$')
+        # ax[1,0].set_ylabel(r'$\omega_{global}$')
 
-        ax[1,1].scatter(x3, x2, marker='o', color='black', alpha=0.05)
-        if a_garch is None:
-            res = linregress(x3, x2)
-            xx = np.array([x3.min(), x3.max()])
-            ax[1,1].plot(xx, res.intercept + res.slope * xx, color="red")
-            text = (f"$R^2$ = {res.rvalue**2:.3f}")
-            ax[1,1].text(0.05, 0.95, text, transform=ax[1,1].transAxes, ha="left", va="top", fontsize=12, bbox=dict(boxstyle="round", facecolor="white", alpha=1))
-        ax[1,1].set_xlabel(r'$\phi$')
+        # ax[1,1].scatter(x3, x2, marker='o', color='black', alpha=0.05)
+        # if a_garch is None:
+        #     res = linregress(x3, x2)
+        #     xx = np.array([x3.min(), x3.max()])
+        #     ax[1,1].plot(xx, res.intercept + res.slope * xx, color="red")
+        #     text = (f"$R^2$ = {res.rvalue**2:.3f}")
+        #     ax[1,1].text(0.05, 0.95, text, transform=ax[1,1].transAxes, ha="left", va="top", fontsize=12, bbox=dict(boxstyle="round", facecolor="white", alpha=1))
+        # ax[1,1].set_xlabel(r'$\phi$')
 
-        fig.delaxes(ax[0,1])
+        # fig.delaxes(ax[0,1])
 
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_folder,f'traces/pairplots/pairplot-a_garch-omega_global_mean-phi.pdf'))
-        plt.close()
+        # plt.tight_layout()
+        # plt.savefig(os.path.join(cluster_output_folder,f'traces/pairplots/pairplot-a_garch-omega_global_mean-phi.pdf'))
+        # plt.close()
         
 
         # forestplot of alpha_inv
@@ -551,7 +563,7 @@ def run_training():
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         plt.tight_layout()
-        plt.savefig(os.path.join(output_folder,f'traces/forestplot-alpha_inv.pdf'))
+        plt.savefig(os.path.join(cluster_output_folder,f'traces/forestplot-alpha_inv.pdf'))
         plt.close()
 
 
@@ -560,7 +572,7 @@ def run_training():
         state_params = ["rho_state", "fI_state", "fR_state", "omega_state"]
         season_params = ["rho_season", "fI_season", "fR_season", "omega_season"]
         global_params = ["rho_global_mean", "fI_global_mean", "fR_global_mean", "omega_global_mean"]
-        params = ['rho', 'fI', 'fR', 'phi', 'omega']
+        params = ['rho', 'fI', 'fR', 'omega']
         effect_type = ['Multiplicative', 'Multiplicative', 'Odds-ratio', 'Multiplicative']
 
         for n, p_state, p_season, g, p, e in zip(labels_params, state_params, season_params, global_params, params, effect_type):
@@ -649,12 +661,12 @@ def run_training():
             axes[1, 1].spines['right'].set_visible(False)
 
             plt.tight_layout()
-            plt.savefig(os.path.join(output_folder,f'traces/forestplot-{p}.pdf'))
+            plt.savefig(os.path.join(cluster_output_folder,f'traces/forestplot-{p}.pdf'))
             plt.close()
 
 
         # Visualise across-season modifier trend + within-season median per state
-        os.makedirs(os.path.join(output_folder,'modifiers'), exist_ok=True)
+        os.makedirs(os.path.join(cluster_output_folder,'modifiers'), exist_ok=True)
         # make dates
         x = pd.date_range(start=datetime(2000,10,15), periods=n_modifiers, freq='W')
         for s in range(n_states):
@@ -667,7 +679,7 @@ def run_training():
                             color='green', alpha=0.15)
             # individual seasons
             for i in range(n_seasons):
-                ax.plot(x, 1+trace.posterior['delta_beta'].median(dim=['chain', 'draw']).values[:,i,s], color='black', alpha=0.3, linewidth=0.5)
+                ax.plot(x, 1+trace.posterior['delta_beta_t'].median(dim=['chain', 'draw']).values[:,i,s], color='black', alpha=0.3, linewidth=0.5)
             ax.axhline(y=1, color='red', linewidth=0.5)
             # decorations
             fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
@@ -675,13 +687,13 @@ def run_training():
             ax.set_ylim([0.65, 1.35])
             ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%b'))
-            plt.savefig(os.path.join(output_folder,f'modifiers/modifiers_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
+            plt.savefig(os.path.join(cluster_output_folder,f'modifiers/modifiers_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
             plt.close()
 
 
-        # Visualise goodness-of-fit, delta_beta, z, sigma2 and eps per state and per season
+        # Visualise goodness-of-fit, delta_beta_t, z_t, sigma2 and eps per state and per season
         for s in range(n_states):
-            os.makedirs(os.path.join(output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/'), exist_ok=True)
+            os.makedirs(os.path.join(cluster_output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/'), exist_ok=True)
             for i, season in enumerate(seasons):
                 
                 fig,ax=plt.subplots(nrows=5, figsize=(8.3, 11.7), sharex=True)
@@ -697,7 +709,7 @@ def run_training():
                                 color='green', alpha=0.2)
                 ax[0].scatter(dt[i, :], posterior_predictive.observed_data['data'].values[i,s,:], marker='o', color='black')
 
-                # across-season delta_beta trend
+                # across-season delta_beta_t trend
                 yr = dt[i, 0].astype(object).year
                 modifier_dates = pd.date_range(start=datetime(yr, modifier_ref_month, modifier_ref_day), periods=n_modifiers, freq=timedelta(weeks=1))
                 ax[1].plot(modifier_dates, trace.posterior['delta_beta_state_mean'].median(dim=['chain', 'draw']).values[:,s], color='green')
@@ -706,8 +718,8 @@ def run_training():
                                 trace.posterior['delta_beta_state_mean'].quantile(dim=['chain', 'draw'], q=0.975).values[:,s],
                                 color='green', alpha=0.15)
                 
-                # within-season delta_beta, z, sigma2, eps
-                for j, par in enumerate(['delta_beta', 'z', 'sigma2', 'eps']):
+                # within-season delta_beta_t, z_t, sigma2, eps
+                for j, par in enumerate(['delta_beta_t', 'z_t', 'phi_t', 'sigma2_t']):
                     ax[j+1].plot(modifier_dates, trace.posterior[par].median(dim=['chain', 'draw']).values[:,i,s], color='black', linewidth=0.5)
                     ax[j+1].fill_between(modifier_dates,
                             trace.posterior[par].quantile(dim=['chain', 'draw'], q=0.025).values[:,i,s],
@@ -715,7 +727,7 @@ def run_training():
                             color='black', alpha=0.15)
                     ax[j+1].set_ylabel(par)
                 ax[0].set_title(season)
-                plt.savefig(os.path.join(output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/{season}_goodness-fit.pdf'))
+                plt.savefig(os.path.join(cluster_output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/{season}_goodness-fit.pdf'))
                 plt.close()
 
 
@@ -736,11 +748,12 @@ def run_training():
             "fR_season_sd",
             "psi_1",    
             "psi_2",
-            "phi",
+            "phi_regime",
+            "sigma_regime",
+            "scale_regime_0",
+            "scale_regime_1",
             "omega_global_mean",
             "omega_season_sd",
-            "a_garch",
-            "b_garch"
         ]
         for p in scalar_params:
             df[p] = float(med[p].values)
@@ -765,7 +778,7 @@ def run_training():
 
         # save to csv
         df.index.name = "state"
-        df.to_csv(os.path.join(output_folder,f"hyperparameters-{training_name}_cluster-{cluster_idx}.csv"))
+        df.to_csv(os.path.join(cluster_output_folder,f"hyperparameters-{training_name}_cluster-{cluster_idx}.csv"))
 
         # append to output list
         hyperparameters.append(df)
@@ -776,7 +789,7 @@ def run_training():
 
     # concatenate all hyperparameters and save them
     output = pd.concat(hyperparameters, axis=0)
-    output.to_csv(os.path.join(output_folder,'..',f"hyperparameters-{training_name}.csv"))
+    output.to_csv(os.path.join(cluster_output_folder,'..',f"hyperparameters-{training_name}.csv"))
 
     print(f'\ntraining complete!\n')
 

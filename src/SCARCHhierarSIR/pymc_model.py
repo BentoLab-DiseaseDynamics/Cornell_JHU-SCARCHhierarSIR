@@ -197,21 +197,3 @@ def weighted_nb_random(*args, rng=None, size=None):
 
     # size: PyMC passes shape of batch/draws
     return rng.negative_binomial(n=1/alpha_, p=1/(1 + mu_ * alpha_), size=size)
-
-
-
-####################################
-## AR(1)-GARCH(1,1) step function ##
-####################################
-
-def AR_GARCH_step(eta_t, prev_z, prev_sigma2, prev_eps, psi, omega, a_garch, b_garch):
-
-    # --- Compute variance ---
-    sigma2 = omega + a_garch * (prev_eps ** 2) + b_garch * prev_sigma2  # GARCH (1,1)
-    
-    # --- AR(1) ---
-    eps = eta_t * pt.sqrt(sigma2)
-    z = psi * prev_z + eps
-
-    return z, sigma2, eps
-
