@@ -325,7 +325,7 @@ def run_training():
 
             # --- AR(1) Regime Dynamic ---
             # Persistence of the regime itself (how long do we stay in a spike/drift phase?)
-            phi_regime = pm.Beta("phi_regime", alpha=3, beta=1) # biased toward holding state
+            phi_regime = pm.Beta("phi_regime", alpha=3, beta=3) # biased toward holding state
             sigma_regime = pm.HalfNormal("sigma_regime", sigma=1)
             # Standard normal innovations for the regime evolution
             regime_shocks = pm.Normal("regime_shocks", 0, 1, shape=(n_modifiers-1, n_seasons, n_states))
@@ -340,7 +340,7 @@ def run_training():
             )
             # Transform to the bounded (0, 1) space
             r_t = pm.Deterministic("r_t", pm.math.sigmoid(pt.concatenate([r_0[None, ...], r_seq])))
-            phi_t = pm.Deterministic("phi_t", 1 - r_t) # regime = 1: spike, regime = 0: drift
+            phi_t = pm.Deterministic("phi_t", r_t) # regime = 0: spike, regime = 1: drift
 
             # --- Baseline volatility --- (= volatility for regime = 0.5)
             ### global
@@ -360,11 +360,11 @@ def run_training():
 
             # --- Time-varying blended volatility ---
             # Calibrate Volatility Multipliers of each regime
-            scale_regime_0 = pm.HalfNormal("scale_regime_0", sigma=1.0) # Drift mode multiplier
-            scale_regime_1 = pm.HalfNormal("scale_regime_1", sigma=5.0) # Spike mode multiplier
+            scale_regime_0 = 1.0 + pm.HalfNormal("scale_regime_0", sigma=1.0)               # Spike mode multiplier
+            scale_regime_1 = pm.Deterministic("scale_regime_1", pt.as_tensor_variable(1.0)) 
             
             # Blend the volatilities over time
-            volatility_multiplier_t = r_t * scale_regime_1 + (1 - r_t) * scale_regime_0
+            volatility_multiplier_t = (1 - r_t) * scale_regime_0 + r_t * scale_regime_1
             sigma2_t = pm.Deterministic("sigma2_t", omega[None, ...] * volatility_multiplier_t)
 
             # --- Spatially correlated innovations ---
