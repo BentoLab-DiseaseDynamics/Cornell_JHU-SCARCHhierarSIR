@@ -56,10 +56,10 @@ def run_training():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 2
-    n_burn = 0
-    training_name = f'exclude_None-a_garch_{a_garch}-b_garch_{b_garch}'
-    n_preoptim = 200
+    n_sample = 20
+    n_burn = 10
+    training_name = f'exclude_None-regime_switcher'
+    n_preoptim = 1000
     ## use previous sampling
     cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
 
