@@ -126,21 +126,22 @@ def run_training():
                 y = np.log1p(np.asarray(d))
                 x = np.arange(len(d))
 
-                gam = LinearGAM(s(0), lam=0.05).fit(x[:, None], y)
+                gam = LinearGAM(s(0), lam=0.05, n_splines=int(np.round(len(d)/2))).fit(x[:, None], y)
 
                 trend = gam.predict(x[:, None])
                 confint = gam.confidence_intervals(x[:, None], width=0.9994)
 
                 outliers = (y < confint[:, 0]) | (y > confint[:, 1])
 
-                # fig,ax=plt.subplots()
-                # ax.set_title(state_fips_index.iloc[i]['abbreviation_state'])
-                # ax.scatter(dt[season], np.expm1(y), marker='o', facecolors='none', color='black')
-                # ax.plot(dt[season], np.expm1(trend), color='green')
-                # ax.fill_between(dt[season], np.expm1(confint[:,0]), np.expm1(confint[:,1]), color='green', alpha=0.15)
-                # ax.scatter(dt[season][outliers], np.expm1(y[outliers]), marker='x', color='red')
-                # plt.show()
-                # plt.close()
+                # if state_fips_index.iloc[i]['abbreviation_state'] == 'DC':
+                #     fig,ax=plt.subplots(figsize=(8.7, 11.3/4))
+                #     ax.set_title(state_fips_index.iloc[i]['abbreviation_state'])
+                #     ax.scatter(dt[season], np.expm1(y), marker='o', color='black', s=10)
+                #     ax.plot(dt[season], np.expm1(trend), color='green')
+                #     ax.fill_between(dt[season], np.expm1(confint[:,0]), np.expm1(confint[:,1]), color='green', alpha=0.15)
+                #     ax.scatter(dt[season][outliers], np.expm1(y[outliers]), marker='x', color='red')
+                #     plt.show()
+                #     plt.close()
 
                 y[outliers] = trend[outliers]
                 data[season, state, :] = np.expm1(y)
@@ -560,7 +561,7 @@ def run_training():
         state_params = ["rho_state", "fI_state", "fR_state", "omega_state"]
         season_params = ["rho_season", "fI_season", "fR_season", "omega_season"]
         global_params = ["rho_global_mean", "fI_global_mean", "fR_global_mean", "omega_global_mean"]
-        params = ['rho', 'fI', 'fR', 'phi', 'omega']
+        params = ['rho', 'fI', 'fR', 'omega']
         effect_type = ['Multiplicative', 'Multiplicative', 'Odds-ratio', 'Multiplicative']
 
         for n, p_state, p_season, g, p, e in zip(labels_params, state_params, season_params, global_params, params, effect_type):
