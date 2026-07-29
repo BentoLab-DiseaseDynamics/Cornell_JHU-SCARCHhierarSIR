@@ -66,7 +66,7 @@ def run_training():
     ## save model-structural parameters and training metadata
     output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     os.makedirs(output_folder, exist_ok=True)
-    params = {"b_garch": b_garch, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "modifier_length": modifier_length, "start_simulation": start_simulation,
+    params = {"a_garch": a_garch, "b_garch": b_garch, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "modifier_length": modifier_length, "start_simulation": start_simulation,
               "modifier_ref_month": modifier_ref_month, "modifier_ref_day": modifier_ref_day, 'clustering_name': clustering_name,
                "observations": n_observations, 'seasons': seasons}
     with open(os.path.join(output_folder, "model_config.json"), "w") as f:
