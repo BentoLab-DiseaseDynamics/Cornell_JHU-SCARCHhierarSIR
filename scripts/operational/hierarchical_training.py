@@ -56,12 +56,12 @@ def run_training():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 25
+    n_sample = 20
     n_burn = 0
     training_name = f'exclude_None-a_garch_{a_garch}-b_garch_{b_garch}'
     n_preoptim = 1000
     ## use previous sampling
-    cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
+    cont_sampling = True # To continue sampling, the number of chains and the observed data must match!
 
     ## save model-structural parameters and training metadata
     output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
@@ -324,7 +324,7 @@ def run_training():
             z_0 = pt.zeros([n_seasons, n_states])
             eps_0 = pt.zeros([n_seasons, n_states])
             # Total AR persistence
-            phi = pm.Beta("phi", alpha=25, beta=25)
+            phi = pm.Deterministic("phi", pt.as_tensor_variable(0.5)) #pm.Beta("phi", alpha=25, beta=25)
 
             # sample iid standard normals as shocks
             eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, shape=(n_modifiers-1, n_seasons, n_states))
