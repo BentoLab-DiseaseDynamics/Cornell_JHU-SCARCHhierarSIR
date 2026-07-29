@@ -1,5 +1,7 @@
 ## Running on Cornell Seneca cluster
 
+Read the docs: https://portal.cac.cornell.edu/TechDocs/clusters/seneca/#ssh
+
 ### Setting up an account and loging in
 
 1. Login to Seneca
