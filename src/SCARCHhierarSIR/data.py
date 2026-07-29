@@ -349,7 +349,7 @@ def simout_to_hubverse_peak_admissions(simout: arviz.InferenceData,
 
     # deduce information from simout
     abbreviation_state = simout.coords["state"].values.tolist()
-    fips_state = [f"{state_fips_index[s]:02d}" for s in abbreviation_state]
+    fips_state = [state_fips_index[s] for s in abbreviation_state]
     output_type_id = simout.coords['draw'].values if not quantiles else [0.01, 0.025, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.975, 0.99]
     # fixed metadata
     output_type = 'samples' if not quantiles else 'quantile'
@@ -433,7 +433,7 @@ def simout_to_hubverse_peak_timing(simout: arviz.InferenceData,
 
     # deduce information from simout
     abbreviation_state = simout.coords["state"].values.tolist()
-    fips_state = [f"{state_fips_index[s]:02d}" for s in abbreviation_state]
+    fips_state = [state_fips_index[s] for s in abbreviation_state]
     assert ((challenge_start_reference_date.weekday() == 5) & (challenge_end_reference_date.weekday() == 5))
     output_type_id = pd.date_range(start=challenge_start_reference_date, end=challenge_end_reference_date, freq="W-SAT")
     output_type = 'pmf'
@@ -508,7 +508,7 @@ def simout_to_hubverse_admissions(simout: arviz.InferenceData,
 
     # deduce information from simout
     abbreviation_state = simout.coords["state"].values.tolist()
-    fips_state = [f"{state_fips_index[s]:02d}" for s in abbreviation_state]
+    fips_state = [state_fips_index[s] for s in abbreviation_state]
     output_type_id = simout.coords['draw'].values if not quantiles else [0.01, 0.025, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.975, 0.99]
     # fixed metadata
     horizon = simout.coords["horizon"].values.tolist()
