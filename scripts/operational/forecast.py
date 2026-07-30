@@ -40,25 +40,24 @@ def run_forecast():
 
     # global parameters go here
     ## training metadata
-    training_name = 'exclude_None'
+    training_name = 'exclude_None-a_garch_0.0-b_garch_0.0'
     training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     ## forecasting settings
     challenge_start_reference_date = datetime(2025, 10, 18) # must be a saturday
     challenge_end_reference_date = datetime(2026, 5, 30)    # must be the last saturday of may
     seasons = ['2025-2026',]        # script only works with one season
-    n_observations = 4              # use all data available in the forecast season
+    n_observations = 8              # use all data available in the forecast season
     forecast_horizon = 20           # forecast 4 weeks ahead
     n_preoptim = 500
-    n_sample = 75
-    n_tune = 25
-    n_chains = 4
+    n_sample = 10
+    n_tune = 10
+    n_chains = 8
     sigma_grw = 0.01
 
     ## load the model-structural parameters and training metadata
     with open(os.path.join(training_folder, "model_config.json"), "r") as f:
         params = json.load(f)
 
-    b_garch = params["b_garch"]
     gamma = params["gamma"]
     n_modifiers = params["n_modifiers"]
     modifier_length = params["modifier_length"]
@@ -66,12 +65,11 @@ def run_forecast():
     modifier_ref_month = params["modifier_ref_month"]
     modifier_ref_day = params["modifier_ref_day"]
     clustering_name = params["clustering_name"]
-    start_calibration_month = params["start_calibration_month"]
 
     # derived products
     ## convert to a list of start and enddates (datetime)
     n_seasons = len(seasons)
-    start_calibrations = [datetime(int(season[0:4]), start_calibration_month, 1) for season in seasons]
+    start_calibrations = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) + timedelta(days=start_simulation) for season in seasons]    # calibrations started at same time as simulation
     modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) for season in seasons]
     model_name = 'SCARCHhierarSIR'
 
@@ -136,8 +134,7 @@ def run_forecast():
         fR_global_mean          = hyperpars['fR_global_mean'].unique()[0]
         fR_season_sd            = hyperpars['fR_season_sd'].unique()[0]
         psi_2                   = hyperpars['psi_2'].unique()[0]
-        phi_global_mean         = hyperpars['phi_global_mean'].unique()[0]
-        phi_season_sd           = hyperpars['phi_season_sd'].unique()[0]
+        phi                     = hyperpars['phi'].unique()[0]
         omega_global_mean       = hyperpars['omega_global_mean'].unique()[0]
         omega_season_sd         = hyperpars['omega_season_sd'].unique()[0]
         a_garch                 = hyperpars['a_garch'].unique()[0]
@@ -147,7 +144,6 @@ def run_forecast():
         rho_state               = hyperpars['rho_state'].values
         fI_state                = hyperpars['fI_state'].values
         fR_state                = hyperpars['fR_state'].values
-        phi_state               = hyperpars['phi_state'].values
         omega_state             = hyperpars['omega_state'].values
 
         ## hypermodifiers
@@ -283,11 +279,7 @@ def run_forecast():
             z_0 = pt.zeros([n_states,])
             eps_0 = pt.zeros([n_states,])
             # Total AR persistence
-            ### global (phi_global_mean)
-            ### state (phi_state)
-            ### season (phi_season_sd)
-            phi_season_raw = pm.Normal("phi_season_raw", 0, 1, dims="season")
-            phi = pm.Deterministic("phi", pt.squeeze(pm.math.sigmoid(pm.math.logit(phi_global_mean) + pt.log(phi_state)[None, :] + phi_season_sd * phi_season_raw[:, None])[0,:]))
+            phi = pm.Deterministic("phi", pt.as_tensor_variable(phi))
             # sample iid standard normals as shocks
             eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, shape=(n_modifiers-1, n_states))
             # correlate them across space using the precision matrix 
@@ -381,33 +373,44 @@ def run_forecast():
         # Visualise goodness-of-fit
         # ~~~~~~~~~~~~~~~~~~~~~~~~~
         
+        # sum over all states to get USA totals
+        data = xr.concat([posterior_predictive.observed_data['obs'], posterior_predictive.observed_data['obs'].sum(dim="state").assign_coords(state="USA").expand_dims("state")], dim="state")
+        obs = xr.concat([posterior_predictive.posterior_predictive['obs'], posterior_predictive.posterior_predictive['obs'].sum(dim="state").assign_coords(state="USA").expand_dims("state")], dim="state")
+        pred = xr.concat([posterior_predictive.posterior_predictive['pred'], posterior_predictive.posterior_predictive['pred'].sum(dim="state").assign_coords(state="USA").expand_dims("state")], dim="state")
+
+        # expand fips index
+        state_fips_index["fips_state"] = state_fips_index["fips_state"].map("{:02d}".format)
+        new_row = pd.DataFrame([{"abbreviation_state": "USA", "name_state": "united states", "fips_state": "USA"}])
+        state_fips_index = pd.concat([state_fips_index, new_row], ignore_index=True)
+
+        
         print('\ngenerating diagnostic plots\n')
 
         # Visualise
         dates_obs = dt[0,:n_observations]
         dates_pred = dt[0,n_observations:]
-        for s in range(n_states):
+        for s in range(len(state_fips_index)):
             fig,ax=plt.subplots()
             ## training
-            ax.plot(dates_obs, posterior_predictive.posterior_predictive['obs'].median(dim=['chain', 'draw']).values[0,s,:], linewidth=1, color='black')
+            ax.plot(dates_obs, obs.median(dim=['chain', 'draw']).values[0,s,:], linewidth=1, color='black')
             ax.fill_between(dates_obs,
-                            posterior_predictive.posterior_predictive['obs'].quantile(dim=['chain', 'draw'], q=0.025).values[0,s,:],
-                            posterior_predictive.posterior_predictive['obs'].quantile(dim=['chain', 'draw'], q=0.975).values[0,s,:],
+                            obs.quantile(dim=['chain', 'draw'], q=0.025).values[0,s,:],
+                            obs.quantile(dim=['chain', 'draw'], q=0.975).values[0,s,:],
                             color='black', alpha=0.1)
             ax.fill_between(dates_obs,
-                            posterior_predictive.posterior_predictive['obs'].quantile(dim=['chain', 'draw'], q=0.025).values[0,s,:],
-                            posterior_predictive.posterior_predictive['obs'].quantile(dim=['chain', 'draw'], q=0.75).values[0,s,:],
+                            obs.quantile(dim=['chain', 'draw'], q=0.025).values[0,s,:],
+                            obs.quantile(dim=['chain', 'draw'], q=0.75).values[0,s,:],
                             color='black', alpha=0.1)    
-            ax.scatter(dates_obs, posterior_predictive.observed_data['obs'].values[0,s,:], marker='o', color='black')
+            ax.scatter(dates_obs, data.values[0,s,:], marker='o', color='black')
             ## forecast
-            ax.plot(dates_pred, posterior_predictive.posterior_predictive['pred'].median(dim=['chain', 'draw']).values[0,s,:], linewidth=1, color='red')
+            ax.plot(dates_pred, pred.median(dim=['chain', 'draw']).values[0,s,:], linewidth=1, color='red')
             ax.fill_between(dates_pred,
-                            posterior_predictive.posterior_predictive['pred'].quantile(dim=['chain', 'draw'], q=0.025).values[0,s,:],
-                            posterior_predictive.posterior_predictive['pred'].quantile(dim=['chain', 'draw'], q=0.975).values[0,s,:],
+                            pred.quantile(dim=['chain', 'draw'], q=0.025).values[0,s,:],
+                            pred.quantile(dim=['chain', 'draw'], q=0.975).values[0,s,:],
                             color='red', alpha=0.1)
             ax.fill_between(dates_pred,
-                            posterior_predictive.posterior_predictive['pred'].quantile(dim=['chain', 'draw'], q=0.25).values[0,s,:],
-                            posterior_predictive.posterior_predictive['pred'].quantile(dim=['chain', 'draw'], q=0.75).values[0,s,:],
+                            pred.quantile(dim=['chain', 'draw'], q=0.25).values[0,s,:],
+                            pred.quantile(dim=['chain', 'draw'], q=0.75).values[0,s,:],
                             color='red', alpha=0.1)    
             fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
             fig.tight_layout()
@@ -424,13 +427,11 @@ def run_forecast():
 
         # remove 'seasons' dimension and flatten the 'chain' and 'draw' dimensions into 'draw'
         ## [forecast]
-        pred = posterior_predictive.posterior_predictive['pred']
         pred = pred.sel(season=seasons).squeeze("season", drop=True)
         pred = (pred.stack(sample=("chain", "draw")).reset_index("sample", drop=True).rename({"sample": "draw"}))
         pred = pred.assign_coords(draw=np.arange(pred.sizes["draw"]))
         pred = pred.rename({"horizon_forecast": "horizon"})
         ## [observed]
-        obs = posterior_predictive.posterior_predictive['obs']
         obs = obs.sel(season=seasons).squeeze("season", drop=True)
         obs = (obs.stack(sample=("chain", "draw")).reset_index("sample", drop=True).rename({"sample": "draw"}))
         obs = obs.assign_coords(draw=np.arange(obs.sizes["draw"]))

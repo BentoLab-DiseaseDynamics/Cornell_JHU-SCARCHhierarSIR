@@ -17,6 +17,7 @@ import pandas as pd
 import multiprocessing as mp
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from scipy.stats import linregress
 from datetime import datetime, timedelta
 # pyMC / pytensor
 import pymc as pm
@@ -41,32 +42,32 @@ def run_training():
 
     # global parameters go here
     ## model-structural
+    a_garch = 0.0
     b_garch = 0.0
     gamma = 1/3.5
-    n_modifiers = 29
+    n_modifiers = 32
     modifier_length = 7
-    start_simulation = -15 # (October 1)
+    start_simulation = 0 # (October 1)
     modifier_ref_month = 10
-    modifier_ref_day = 15
+    modifier_ref_day = 1
     clustering_name = 'all'
     ## temporal extent of training
-    start_calibration_month = 10    # determines simulation start (1st day of month)
-    n_observations = 35             # run until start of June
+    n_observations = 35             # run until start of May
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 100
+    n_sample = 20
     n_burn = 0
-    training_name = 'exclude_None-wGARCH'
+    training_name = f'exclude_None-a_garch_{a_garch}-b_garch_{b_garch}'
     n_preoptim = 1000
     ## use previous sampling
-    cont_sampling = False   # To continue sampling, the number of chains and the observed data must match!
+    cont_sampling = True # To continue sampling, the number of chains and the observed data must match!
 
     ## save model-structural parameters and training metadata
     output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     os.makedirs(output_folder, exist_ok=True)
-    params = {"b_garch": b_garch, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "modifier_length": modifier_length, "start_simulation": start_simulation,
-              "modifier_ref_month": modifier_ref_month, "modifier_ref_day": modifier_ref_day, 'clustering_name': clustering_name, "start_calibration_month": start_calibration_month,
+    params = {"a_garch": a_garch, "b_garch": b_garch, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "modifier_length": modifier_length, "start_simulation": start_simulation,
+              "modifier_ref_month": modifier_ref_month, "modifier_ref_day": modifier_ref_day, 'clustering_name': clustering_name,
                "observations": n_observations, 'seasons': seasons}
     with open(os.path.join(output_folder, "model_config.json"), "w") as f:
         json.dump(params, f, indent=4)
@@ -74,11 +75,8 @@ def run_training():
     # derived products
     ## convert to a list of start and enddates (datetime)
     n_seasons = len(seasons)
-    start_calibrations = [datetime(int(season[0:4]), start_calibration_month, 1) for season in seasons]
+    start_calibrations = [datetime(int(season[0:4]),modifier_ref_month, modifier_ref_day) + timedelta(days=start_simulation) for season in seasons] # start calibration at simulation start
     modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) for season in seasons]
-    ## misc
-    assert n_sample > n_burn, 'number of burned samples cannot exceed total number of samples'
-
 
     # Get the clusters
     # ~~~~~~~~~~~~~~~~
@@ -97,7 +95,7 @@ def run_training():
 
         print(f'states in cluster: {clusters[clusters[clustering_name] == cluster_idx]['abbreviation_state'].values.tolist()}\n')
 
-        output_folder = os.path.join(output_folder, f'cluster_{cluster_idx}')
+        cluster_output_folder = os.path.join(output_folder, f'cluster_{cluster_idx}')
 
         # Get US demographics
         # ~~~~~~~~~~~~~~~~~~~
@@ -115,6 +113,38 @@ def run_training():
 
         reference_date, data, dt, ts, n_observations = get_NHSN_HRD_data(start_calibrations, modifier_reference_dates, n_observations, forecast_horizon=None, state_fips=state_fips_index['fips_state'].values) # (n_season, n_variables, n_observations)
         data = data / 7 # divide weekly incidence by 7
+
+        # Outlier detection
+        # ~~~~~~~~~~~~~~~~~
+
+        from pygam import LinearGAM, s
+        for season in range(data.shape[0]):
+            for i,state in enumerate(range(data.shape[1])):
+
+                d = data[season,state,:]
+
+                y = np.log1p(np.asarray(d))
+                x = np.arange(len(d))
+
+                gam = LinearGAM(s(0), lam=0.05, n_splines=int(np.round(len(d)/2))).fit(x[:, None], y)
+
+                trend = gam.predict(x[:, None])
+                confint = gam.confidence_intervals(x[:, None], width=0.9994)
+
+                outliers = (y < confint[:, 0]) | (y > confint[:, 1])
+
+                # if state_fips_index.iloc[i]['abbreviation_state'] == 'DC':
+                #     fig,ax=plt.subplots(figsize=(8.7, 11.3/4))
+                #     ax.set_title(state_fips_index.iloc[i]['abbreviation_state'])
+                #     ax.scatter(dt[season], np.expm1(y), marker='o', color='black', s=10)
+                #     ax.plot(dt[season], np.expm1(trend), color='green')
+                #     ax.fill_between(dt[season], np.expm1(confint[:,0]), np.expm1(confint[:,1]), color='green', alpha=0.15)
+                #     ax.scatter(dt[season][outliers], np.expm1(y[outliers]), marker='x', color='red')
+                #     plt.show()
+                #     plt.close()
+
+                y[outliers] = trend[outliers]
+                data[season, state, :] = np.expm1(y)
 
         # TODO: assert if there's nan in data
 
@@ -170,8 +200,8 @@ def run_training():
                 ax.scatter(dt[i, :], 7*data[i, s, :], marker='o', color='black', label='obs')
             fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
             fig.tight_layout()
-            os.makedirs(os.path.join(output_folder, 'initial-optim'), exist_ok=True)
-            plt.savefig(os.path.join(output_folder,f'initial-optim/state_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
+            os.makedirs(os.path.join(cluster_output_folder, 'initial-optim'), exist_ok=True)
+            plt.savefig(os.path.join(cluster_output_folder,f'initial-optim/state_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
             plt.close(fig)
 
         # compute pyMC initial effect sizes
@@ -182,7 +212,7 @@ def run_training():
                 'log_rho_global_mean': init["log_rho"]["global"], 'rho_state_sd': 0.2, 'rho_state_raw': init["log_rho"]["state"] / 0.2, 'rho_season_sd': 0.2, 'rho_season_raw': init["log_rho"]["season"] / 0.2,
                 'log_fI_global_mean': init["log_fI"]["global"], 'fI_state_sd': 0.2, 'fI_state_raw': init["log_fI"]["state"] / 0.2, 'fI_season_sd': 0.2, 'fI_season_raw': init["log_fI"]["season"] / 0.2,
                 'logit_fR_global_mean': init["logit_fR"]["global"], 'fR_state_sd': 0.2, 'fR_state_raw': init["logit_fR"]["state"] / 0.2, 'fR_season_sd': 0.2, 'fR_season_raw': init["logit_fR"]["season"] / 0.2,
-                'logit_phi_global_mean': 0.50, 'log_omega_global_mean': pt.log(0.01)}]
+                'phi': 0.50, 'log_omega_global_mean': pt.log(0.05/3), 'omega_global_mean_shrinkage': 0.05/3}]
 
         print('\nparameter hierarchy reconstruction\n')
 
@@ -271,8 +301,8 @@ def run_training():
             # ------- AR-GARCH modifiers -----------
 
             # Spatial correlation
-            psi_1 = pm.Beta("psi_1", 3, 3)
-            psi_2 = pm.Beta("psi_2", 3, 1)
+            psi_1 = 1e-5 + (1-1e-5)*pm.Beta("psi_1", 3, 3) # always had one chain getting stuck at exactly 0
+            psi_2 = pm.Beta("psi_2", 3, 3)
 
             I = pt.eye(n_states)
             W = pt.as_tensor_variable(adj)
@@ -294,20 +324,7 @@ def run_training():
             z_0 = pt.zeros([n_seasons, n_states])
             eps_0 = pt.zeros([n_seasons, n_states])
             # Total AR persistence
-            ## global
-            logit_phi_global_mean = pm.Normal("logit_phi_global_mean", mu=0, sigma=1)
-            phi_global_mean = pm.Deterministic("phi_global_mean", pm.math.sigmoid(logit_phi_global_mean))
-            ## state
-            phi_state_sd = pm.HalfNormal("phi_state_sd", sigma=1/5)
-            phi_state_raw = pm.Normal("phi_state_raw", 0, 1, dims="state")
-            phi_state = pm.Deterministic("phi_state", pt.exp(phi_state_sd * phi_state_raw), dims="state")
-            ### season
-            phi_season_sd = pm.HalfNormal("phi_season_sd", sigma=1/5)
-            phi_season_raw = pm.Normal("phi_season_raw", 0, 1, dims="season")
-            phi_season = pm.Deterministic("phi_season", pt.exp(phi_season_sd * phi_season_raw), dims="season")
-            phi = pm.Deterministic("phi",
-                                   pm.math.sigmoid(logit_phi_global_mean + phi_state_sd * phi_state_raw[None, :] + phi_season_sd * phi_season_raw[:, None]),
-                                   dims=("season", "state"))
+            phi = pm.Deterministic("phi", pt.as_tensor_variable(0.5)) #pm.Beta("phi", alpha=25, beta=25)
 
             # sample iid standard normals as shocks
             eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, shape=(n_modifiers-1, n_seasons, n_states))
@@ -317,7 +334,8 @@ def run_training():
             # --- GARCH(1,0) = ARCH(1) parameters ---    
             ## baseline noise
             ### global
-            log_omega_global_mean = pm.Normal("log_omega_global_mean", mu=pt.log(0.05/3), sigma=1/5)    
+            omega_global_mean_shrinkage = pm.HalfNormal("omega_global_mean_shrinkage", sigma=0.05/3)
+            log_omega_global_mean = pm.Normal("log_omega_global_mean", mu=pt.log(omega_global_mean_shrinkage), sigma=1/5)    
             omega_global_mean = pm.Deterministic("omega_global_mean", pt.exp(log_omega_global_mean))
             ### state
             omega_state_sd = pm.HalfNormal("omega_state_sd", sigma=1/5)      
@@ -330,8 +348,10 @@ def run_training():
             log_omega = log_omega_global_mean + omega_state_sd * omega_state_raw[None, :] + omega_season_sd * omega_season_raw[:, None]
             omega = pm.Deterministic("omega", pt.exp(log_omega), dims=("season", "state")) 
             ## alpha and beta
-            logit_a_garch = pm.Normal("logit_a_garch", mu=0, sigma=1)
-            a_garch = pm.Deterministic("a_garch", pm.math.sigmoid(logit_a_garch))
+            if a_garch is not None:
+                a_garch = pm.Deterministic("a_garch", pt.as_tensor_variable(a_garch))
+            else:
+                a_garch = pm.Beta("a_garch",alpha=1, beta=5)    # --> baseline assumption: no volatility clustering
             b_garch = pm.Deterministic("b_garch", pt.as_tensor_variable(b_garch))
             # Initial noise   
             sigma2_0 = pm.Deterministic("sigma2_0", omega, dims=("season", "state"))
@@ -362,7 +382,7 @@ def run_training():
             ys = pt.math.softplus(ys)
 
             # Compute likelihood
-            alpha_inv = pm.LogNormal("alpha_inv", mu=pt.log(0.0025), sigma=1/5, dims="state")
+            alpha_inv = pm.HalfNormal("alpha_inv", sigma=0.002/3, dims="state")
             pm.CustomDist("data", ys, 1/alpha_inv, weights, logp=weighted_nb_logp, random=weighted_nb_random, observed=7*data)
 
         # Sample pyMC model
@@ -376,6 +396,9 @@ def run_training():
                 trace_path = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}/cluster_{cluster_idx}/trace.nc')
                 prev_trace = arviz.from_netcdf(trace_path)
                 initvals = trace_to_initvals(prev_trace, [rv.name for rv in model.free_RVs])
+                assert len(prev_trace.posterior.coords['draw'].values) > n_burn, 'number of burned samples cannot exceed total number of samples'
+            else:
+                assert n_sample > n_burn, 'number of burned samples cannot exceed total number of samples'
             # set step size directly
             # for US as a whole: step_scale: 0.00175 + max_treedepth 13, For U.S. census regions clusters: step_scale: 0.005 + max_treedepth 10
             step = pm.NUTS(step_scale=0.00175, target_accept=0.8, max_treedepth=12)       
@@ -383,12 +406,12 @@ def run_training():
             trace = pm.sample(n_sample, tune=0, chains=n_chains, progressbar=True,
                             cores=n_chains, init='adapt_diag', step = step,
                             mp_ctx=mp.get_context("spawn"), initvals=initvals)
-        
+
         print('\n..finished sampling\n')
         print('\nsaving traces\n')
 
         if not cont_sampling:
-            trace.to_netcdf(os.path.join(output_folder, f"trace.nc"))
+            trace.to_netcdf(os.path.join(cluster_output_folder, f"trace.nc"))
         else:
             combined_trace = concat_traces(prev_trace, trace)
             tmp_path = trace_path + ".tmp"
@@ -409,16 +432,17 @@ def run_training():
                         'fR_global_mean', 'fR_state_sd', 'fR_state', 'fR_season_sd', 'fR_season', 'fR',         # fR
                         'delta_beta_state_mean',                                                                # delta_beta_mu
                         'psi_2', 'psi_1',                                                                       # spatial correlation strength
-                        'phi_global_mean', 'phi_state_sd', 'phi_season_sd', 'phi',                              # AR 
+                        'phi',                                                                                  # AR 
                         'omega_global_mean', 'omega_state_sd', 'omega_state', 'omega_season_sd', 'omega_season', 'omega', # GARCH(1,0) parameters
+                        'omega_global_mean_shrinkage',
                         'a_garch', 'b_garch', 'sigma2_0',
                         ]
 
         # Save original traces
-        os.makedirs(os.path.join(output_folder,'traces'), exist_ok=True)
+        os.makedirs(os.path.join(cluster_output_folder,'traces'), exist_ok=True)
         for var in variables2plot:
             arviz.plot_trace_dist(trace, var_names=[var], compact=True, combined=True, kind='kde') 
-            plt.savefig(os.path.join(output_folder,f'traces/trace-{var}.pdf'))
+            plt.savefig(os.path.join(cluster_output_folder,f'traces/trace-{var}.pdf'))
             plt.close()
 
         # Make posterior predictive
@@ -429,88 +453,120 @@ def run_training():
             posterior_predictive = pm.sample_posterior_predictive(trace)
 
         # Save posterior predictive
-        posterior_predictive.to_netcdf(os.path.join(output_folder,"posterior_predictive.nc"))
+        posterior_predictive.to_netcdf(os.path.join(cluster_output_folder,"posterior_predictive.nc"))
 
         # Visualisations
         # ~~~~~~~~~~~~~~
 
-        # Visualise across-season modifier trend + within-season median per state
-        os.makedirs(os.path.join(output_folder,'modifiers'), exist_ok=True)
-        # make dates
-        x = pd.date_range(start=datetime(2000,10,15), periods=n_modifiers, freq='W')
-        for s in range(n_states):
-            fig,ax=plt.subplots(figsize=(8.3, 11.7/5))
-            # average trend
-            ax.plot(x, 1+trace.posterior['delta_beta_state_mean'].median(dim=['chain', 'draw']).values[:,s], color='green')
-            ax.fill_between(x,
-                            1+trace.posterior['delta_beta_state_mean'].quantile(dim=['chain', 'draw'], q=0.025).values[:,s],
-                            1+trace.posterior['delta_beta_state_mean'].quantile(dim=['chain', 'draw'], q=0.975).values[:,s],
-                            color='green', alpha=0.15)
-            # individual seasons
-            for i in range(n_seasons):
-                ax.plot(x, 1+trace.posterior['delta_beta'].median(dim=['chain', 'draw']).values[:,i,s], color='black', alpha=0.3, linewidth=0.5)
-            ax.axhline(y=1, color='red', linewidth=0.5)
-            # decorations
-            fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
-            ax.set_ylabel(r'$\Delta \beta_t$')
-            ax.set_ylim([0.65, 1.35])
-            ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
-            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b'))
-            plt.savefig(os.path.join(output_folder,f'modifiers/modifiers_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
+        # pairplots of alpha_inv and omega per U.S. state or territory
+        os.makedirs(os.path.join(cluster_output_folder,'traces/pairplots'), exist_ok=True)
+        x = trace.posterior['alpha_inv'].stack(sample=("chain", "draw"))
+        y = trace.posterior['omega_state'].stack(sample=("chain", "draw"))
+        states = x["state"].values
+        for state in states:
+            fig,ax=plt.subplots(figsize=(8.3/2, 11.7/4))
+            ax.scatter(x.sel(state=state), y.sel(state=state), marker='o', color='black', alpha=0.05)
+            # add regression
+            if a_garch is None:
+                res = linregress(x.sel(state=state), y.sel(state=state))
+                xx = np.array([x.sel(state=state).min(), x.sel(state=state).max()])
+                ax.plot(xx, res.intercept + res.slope * xx, color="red")
+                text = (f"$R^2$ = {res.rvalue**2:.3f}")
+                ax.text(0.05, 0.95, text, transform=ax.transAxes, ha="left", va="top", fontsize=5, bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
+            ax.set_xlabel(r'$1/\alpha_i$')
+            ax.set_ylabel(r'$\omega_i$')
+            ax.set_title(f'{state}')
+            plt.tight_layout()
+            plt.savefig(os.path.join(cluster_output_folder,f'traces/pairplots/pairplot-alpha_omega-{state}.pdf'))
             plt.close()
 
 
-        # Visualise goodness-of-fit, delta_beta, z, sigma2 and eps per state and per season
-        for s in range(n_states):
-            os.makedirs(os.path.join(output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/'), exist_ok=True)
-            for i, season in enumerate(seasons):
-                
-                fig,ax=plt.subplots(nrows=5, figsize=(8.3, 11.7), sharex=True)
-                # observed versus modeled
-                ax[0].plot(dt[i, :], posterior_predictive.posterior_predictive['data'].median(dim=['chain', 'draw']).values[i,s,:], linewidth=1, color='green')
-                ax[0].fill_between(dt[i, :],
-                                posterior_predictive.posterior_predictive['data'].quantile(dim=['chain', 'draw'], q=0.025).values[i,s,:],
-                                posterior_predictive.posterior_predictive['data'].quantile(dim=['chain', 'draw'], q=0.975).values[i,s,:],
-                                color='green', alpha=0.1)
-                ax[0].fill_between(dt[i, :],
-                                posterior_predictive.posterior_predictive['data'].quantile(dim=['chain', 'draw'], q=0.25).values[i,s,:],
-                                posterior_predictive.posterior_predictive['data'].quantile(dim=['chain', 'draw'], q=0.75).values[i,s,:],
-                                color='green', alpha=0.2)
-                ax[0].scatter(dt[i, :], posterior_predictive.observed_data['data'].values[i,s,:], marker='o', color='black')
+        # pairplot of a_garch, omega_global and phi
+        x1 = trace.posterior['a_garch'].stack(sample=("chain", "draw"))
+        x2 = trace.posterior['omega_global_mean'].stack(sample=("chain", "draw"))
+        x3 = trace.posterior['phi'].stack(sample=("chain", "draw"))
 
-                # across-season delta_beta trend
-                yr = dt[i, 0].astype(object).year
-                modifier_dates = pd.date_range(start=datetime(yr, modifier_ref_month, modifier_ref_day), periods=n_modifiers, freq=timedelta(weeks=1))
-                ax[1].plot(modifier_dates, trace.posterior['delta_beta_state_mean'].median(dim=['chain', 'draw']).values[:,s], color='green')
-                ax[1].fill_between(modifier_dates,
-                                trace.posterior['delta_beta_state_mean'].quantile(dim=['chain', 'draw'], q=0.025).values[:,s],
-                                trace.posterior['delta_beta_state_mean'].quantile(dim=['chain', 'draw'], q=0.975).values[:,s],
-                                color='green', alpha=0.15)
-                
-                # within-season delta_beta, z, sigma2, eps
-                for j, par in enumerate(['delta_beta', 'z', 'sigma2', 'eps']):
-                    ax[j+1].plot(modifier_dates, trace.posterior[par].median(dim=['chain', 'draw']).values[:,i,s], color='black', linewidth=0.5)
-                    ax[j+1].fill_between(modifier_dates,
-                            trace.posterior[par].quantile(dim=['chain', 'draw'], q=0.025).values[:,i,s],
-                            trace.posterior[par].quantile(dim=['chain', 'draw'], q=0.975).values[:,i,s],
-                            color='black', alpha=0.15)
-                    ax[j+1].set_ylabel(par)
-                ax[0].set_title(season)
-                plt.savefig(os.path.join(output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/{season}_goodness-fit.pdf'))
-                plt.close()
+        fig,ax=plt.subplots(figsize=(8.3, 11.7/2), nrows=2, ncols=2)
+
+        ax[0,0].scatter(x1, x3, marker='o', color='black', alpha=0.05)
+        if a_garch is None:
+            res = linregress(x1, x3)
+            xx = np.array([x1.min(), x1.max()])
+            ax[0,0].plot(xx, res.intercept + res.slope * xx, color="red")
+            text = (f"$R^2$ = {res.rvalue**2:.3f}")
+            ax[0,0].text(0.05, 0.95, text, transform=ax[0,0].transAxes, ha="left", va="top", fontsize=12, bbox=dict(boxstyle="round", facecolor="white", alpha=1))
+        ax[0,0].set_ylabel(r'$\phi$')
+
+        ax[1,0].scatter(x1, x2, marker='o', color='black', alpha=0.05)
+        if a_garch is None:
+            res = linregress(x1, x2)
+            xx = np.array([x1.min(), x1.max()])
+            ax[1,0].plot(xx, res.intercept + res.slope * xx, color="red")
+            text = (f"$R^2$ = {res.rvalue**2:.3f}")
+            ax[1,0].text(0.05, 0.95, text, transform=ax[1,0].transAxes, ha="left", va="top", fontsize=12, bbox=dict(boxstyle="round", facecolor="white", alpha=1))
+        ax[1,0].set_xlabel(r'$\alpha_{GARCH}$')
+        ax[1,0].set_ylabel(r'$\omega_{global}$')
+
+        ax[1,1].scatter(x3, x2, marker='o', color='black', alpha=0.05)
+        if a_garch is None:
+            res = linregress(x3, x2)
+            xx = np.array([x3.min(), x3.max()])
+            ax[1,1].plot(xx, res.intercept + res.slope * xx, color="red")
+            text = (f"$R^2$ = {res.rvalue**2:.3f}")
+            ax[1,1].text(0.05, 0.95, text, transform=ax[1,1].transAxes, ha="left", va="top", fontsize=12, bbox=dict(boxstyle="round", facecolor="white", alpha=1))
+        ax[1,1].set_xlabel(r'$\phi$')
+
+        fig.delaxes(ax[0,1])
+
+        plt.tight_layout()
+        plt.savefig(os.path.join(cluster_output_folder,f'traces/pairplots/pairplot-a_garch-omega_global_mean-phi.pdf'))
+        plt.close()
+        
+
+        # forestplot of alpha_inv
+        fig,ax=plt.subplots(figsize=(8.3/3*2, 11.7))
+        samples = trace.posterior['alpha_inv'].stack(sample=("chain", "draw"))
+        # compute median and 50% & 95% HDI
+        median = samples.median(dim="sample").values
+        hdi = arviz.hdi(samples, prob=0.95, dim="sample")
+        lower_95 = hdi.sel(ci_bound="lower").values
+        upper_95 = hdi.sel(ci_bound="upper").values
+        hdi = arviz.hdi(samples, prob=0.50, dim="sample")
+        lower_75 = hdi.sel(ci_bound="lower").values
+        upper_75 = hdi.sel(ci_bound="upper").values
+        # labels
+        states = samples["state"].values
+        # y positions
+        y = np.arange(len(states))
+        # horizontal intervals
+        ax.hlines(y, lower_75, upper_75, linewidth=3, color='forestgreen')
+        ax.hlines(y, lower_95, upper_95, linewidth=1, color='forestgreen')
+        # median points
+        ax.plot(median, y, "o", color='black', markerfacecolor='white', markersize=3)
+        # formatting
+        ax.set_yticks(y)
+        ax.set_yticklabels(states)
+        ax.invert_yaxis()
+        ax.set_title(r"$1/\alpha_i$ by U.S. state or territory", fontsize=12)
+        # cleanup
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        plt.tight_layout()
+        plt.savefig(os.path.join(cluster_output_folder,f'traces/forestplot-alpha_inv.pdf'))
+        plt.close()
 
 
         # visualise forest plots of state and season effect sizes
-        labels_params = [r'$\rho$', r'$f_I$', r'$f_R$', r'$\phi$', r'$\omega$']
-        state_params = ["rho_state", "fI_state", "fR_state", "phi_state", "omega_state"]
-        season_params = ["rho_season", "fI_season", "fR_season", "phi_season", "omega_season"]
-        global_params = ["rho_global_mean", "fI_global_mean", "fR_global_mean", "phi_global_mean", "omega_global_mean"]
-        params = ['rho', 'fI', 'fR', 'phi', 'omega']
-        effect_type = ['Multiplicative', 'Multiplicative', 'Odds-ratio', 'Odds-ratio', 'Multiplicative']
+        labels_params = [r'$\rho$', r'$f_I$', r'$f_R$', r'$\omega$']
+        state_params = ["rho_state", "fI_state", "fR_state", "omega_state"]
+        season_params = ["rho_season", "fI_season", "fR_season", "omega_season"]
+        global_params = ["rho_global_mean", "fI_global_mean", "fR_global_mean", "omega_global_mean"]
+        params = ['rho', 'fI', 'fR', 'omega']
+        effect_type = ['Multiplicative', 'Multiplicative', 'Odds-ratio', 'Multiplicative']
 
         for n, p_state, p_season, g, p, e in zip(labels_params, state_params, season_params, global_params, params, effect_type):
 
-            fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(11.7, 8.3),
+            fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8.3, 11.7),
                                     gridspec_kw={'height_ratios': [1, 3], 'width_ratios': [1, 1]})
             
             # ---- Top row: global effect, spanning both columns ----
@@ -594,8 +650,74 @@ def run_training():
             axes[1, 1].spines['right'].set_visible(False)
 
             plt.tight_layout()
-            plt.savefig(os.path.join(output_folder,f'traces/forestplot-{p}.pdf'))
+            plt.savefig(os.path.join(cluster_output_folder,f'traces/forestplot-{p}.pdf'))
             plt.close()
+
+
+        # Visualise across-season modifier trend + within-season median per state
+        os.makedirs(os.path.join(cluster_output_folder,'modifiers'), exist_ok=True)
+        # make dates
+        x = pd.date_range(start=datetime(2000,10,15), periods=n_modifiers, freq='W')
+        for s in range(n_states):
+            fig,ax=plt.subplots(figsize=(8.3, 11.7/5))
+            # average trend
+            ax.plot(x, 1+trace.posterior['delta_beta_state_mean'].median(dim=['chain', 'draw']).values[:,s], color='green')
+            ax.fill_between(x,
+                            1+trace.posterior['delta_beta_state_mean'].quantile(dim=['chain', 'draw'], q=0.025).values[:,s],
+                            1+trace.posterior['delta_beta_state_mean'].quantile(dim=['chain', 'draw'], q=0.975).values[:,s],
+                            color='green', alpha=0.15)
+            # individual seasons
+            for i in range(n_seasons):
+                ax.plot(x, 1+trace.posterior['delta_beta'].median(dim=['chain', 'draw']).values[:,i,s], color='black', alpha=0.3, linewidth=0.5)
+            ax.axhline(y=1, color='red', linewidth=0.5)
+            # decorations
+            fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
+            ax.set_ylabel(r'$\Delta \beta_t$')
+            ax.set_ylim([0.65, 1.35])
+            ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b'))
+            plt.savefig(os.path.join(cluster_output_folder,f'modifiers/modifiers_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
+            plt.close()
+
+
+        # Visualise goodness-of-fit, delta_beta, z, sigma2 and eps per state and per season
+        for s in range(n_states):
+            os.makedirs(os.path.join(cluster_output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/'), exist_ok=True)
+            for i, season in enumerate(seasons):
+                
+                fig,ax=plt.subplots(nrows=5, figsize=(8.3, 11.7), sharex=True)
+                # observed versus modeled
+                ax[0].plot(dt[i, :], posterior_predictive.posterior_predictive['data'].median(dim=['chain', 'draw']).values[i,s,:], linewidth=1, color='green')
+                ax[0].fill_between(dt[i, :],
+                                posterior_predictive.posterior_predictive['data'].quantile(dim=['chain', 'draw'], q=0.025).values[i,s,:],
+                                posterior_predictive.posterior_predictive['data'].quantile(dim=['chain', 'draw'], q=0.975).values[i,s,:],
+                                color='green', alpha=0.1)
+                ax[0].fill_between(dt[i, :],
+                                posterior_predictive.posterior_predictive['data'].quantile(dim=['chain', 'draw'], q=0.25).values[i,s,:],
+                                posterior_predictive.posterior_predictive['data'].quantile(dim=['chain', 'draw'], q=0.75).values[i,s,:],
+                                color='green', alpha=0.2)
+                ax[0].scatter(dt[i, :], posterior_predictive.observed_data['data'].values[i,s,:], marker='o', color='black')
+
+                # across-season delta_beta trend
+                yr = dt[i, 0].astype(object).year
+                modifier_dates = pd.date_range(start=datetime(yr, modifier_ref_month, modifier_ref_day), periods=n_modifiers, freq=timedelta(weeks=1))
+                ax[1].plot(modifier_dates, trace.posterior['delta_beta_state_mean'].median(dim=['chain', 'draw']).values[:,s], color='green')
+                ax[1].fill_between(modifier_dates,
+                                trace.posterior['delta_beta_state_mean'].quantile(dim=['chain', 'draw'], q=0.025).values[:,s],
+                                trace.posterior['delta_beta_state_mean'].quantile(dim=['chain', 'draw'], q=0.975).values[:,s],
+                                color='green', alpha=0.15)
+                
+                # within-season delta_beta, z, sigma2, eps
+                for j, par in enumerate(['delta_beta', 'z', 'sigma2', 'eps']):
+                    ax[j+1].plot(modifier_dates, trace.posterior[par].median(dim=['chain', 'draw']).values[:,i,s], color='black', linewidth=0.5)
+                    ax[j+1].fill_between(modifier_dates,
+                            trace.posterior[par].quantile(dim=['chain', 'draw'], q=0.025).values[:,i,s],
+                            trace.posterior[par].quantile(dim=['chain', 'draw'], q=0.975).values[:,i,s],
+                            color='black', alpha=0.15)
+                    ax[j+1].set_ylabel(par)
+                ax[0].set_title(season)
+                plt.savefig(os.path.join(cluster_output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/{season}_goodness-fit.pdf'))
+                plt.close()
 
 
         # Save hyperdistributions
@@ -615,8 +737,7 @@ def run_training():
             "fR_season_sd",
             "psi_1",    
             "psi_2",
-            "phi_global_mean",
-            "phi_season_sd",
+            "phi",
             "omega_global_mean",
             "omega_season_sd",
             "a_garch",
@@ -631,7 +752,6 @@ def run_training():
             "rho_state",
             "fI_state",
             "fR_state",
-            "phi_state",
             "omega_state",
         ]
         for p in state_params:
@@ -646,7 +766,7 @@ def run_training():
 
         # save to csv
         df.index.name = "state"
-        df.to_csv(os.path.join(output_folder,f"hyperparameters-{training_name}_cluster-{cluster_idx}.csv"))
+        df.to_csv(os.path.join(cluster_output_folder,f"hyperparameters-{training_name}_cluster-{cluster_idx}.csv"))
 
         # append to output list
         hyperparameters.append(df)
@@ -657,7 +777,7 @@ def run_training():
 
     # concatenate all hyperparameters and save them
     output = pd.concat(hyperparameters, axis=0)
-    output.to_csv(os.path.join(output_folder,'..',f"hyperparameters-{training_name}.csv"))
+    output.to_csv(os.path.join(output_folder,f"hyperparameters-{training_name}.csv"))
 
     print(f'\ntraining complete!\n')
 
