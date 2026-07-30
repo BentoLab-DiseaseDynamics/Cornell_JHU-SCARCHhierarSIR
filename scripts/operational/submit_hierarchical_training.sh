@@ -12,7 +12,7 @@
 module load anaconda3
 
 # Activate the virtual environment
-conda activate HIERARCHSIR
+conda activate BENTOLAB-SCARCH_HIERARSIR
 
 # Run your Python script
 python hierarchical_training.py
