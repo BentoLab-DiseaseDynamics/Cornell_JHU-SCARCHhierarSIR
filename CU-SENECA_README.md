@@ -120,6 +120,13 @@ git reset --hard && git clean -f -d
 git pull origin
 ```
 
+You might have to repeat,
+
+```bash
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/github
+```
+
 5. Copy files from the HPC to local computer (Linux/Mac):
 
     - Open a terminal where you want to place the files on your computer.
