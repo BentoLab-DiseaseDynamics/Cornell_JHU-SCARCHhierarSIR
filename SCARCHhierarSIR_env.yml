@@ -1,7 +1,6 @@
 name: BENTOLAB-SCARCH_HIERARSIR
 channels:
   - conda-forge
-  - defaults
 dependencies:
   - python=3.13
   - pip
