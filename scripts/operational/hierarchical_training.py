@@ -56,7 +56,7 @@ def run_training():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 20
+    n_sample = 10
     n_burn = 0
     training_name = f'exclude_None-a_garch_{a_garch}-b_garch_{b_garch}'
     n_preoptim = 1000
