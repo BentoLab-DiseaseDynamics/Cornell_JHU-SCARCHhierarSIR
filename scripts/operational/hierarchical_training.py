@@ -50,14 +50,14 @@ def run_training():
     start_simulation = 0 # (October 1)
     modifier_ref_month = 10
     modifier_ref_day = 1
-    clustering_name = 'test'
+    clustering_name = 'all'
     ## temporal extent of training
     n_observations = 35             # run until start of May
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 20
-    n_burn = 10
+    n_sample = 40
+    n_burn = 0
     training_name = f'exclude_None-regime_switcher'
     n_preoptim = 1000
     ## use previous sampling
@@ -211,7 +211,7 @@ def run_training():
                 'log_rho_global_mean': init["log_rho"]["global"], 'rho_state_sd': 0.2, 'rho_state_raw': init["log_rho"]["state"] / 0.2, 'rho_season_sd': 0.2, 'rho_season_raw': init["log_rho"]["season"] / 0.2,
                 'log_fI_global_mean': init["log_fI"]["global"], 'fI_state_sd': 0.2, 'fI_state_raw': init["log_fI"]["state"] / 0.2, 'fI_season_sd': 0.2, 'fI_season_raw': init["log_fI"]["season"] / 0.2,
                 'logit_fR_global_mean': init["logit_fR"]["global"], 'fR_state_sd': 0.2, 'fR_state_raw': init["logit_fR"]["state"] / 0.2, 'fR_season_sd': 0.2, 'fR_season_raw': init["logit_fR"]["season"] / 0.2,
-                'phi_regime': 0.50, 'sigma_regime': 0.50, 'scale_regime_1': 2, 'scale_regime_0': 0.5, 'log_omega_global_mean': pt.log(0.05/3), 'omega_global_mean_shrinkage': 0.05/3}]
+                'phi_regime': 0.50, 'sigma_regime': 0.50, 'log_omega_global_mean': pt.log(0.05/3), 'omega_global_mean_shrinkage': 0.05/3}]
 
         print('\nparameter hierarchy reconstruction\n')
 
@@ -324,17 +324,17 @@ def run_training():
 
             # --- AR(1) Regime Dynamic ---
             # Persistence of the regime itself (how long do we stay in a spike/drift phase?)
-            phi_regime = pm.Beta("phi_regime", alpha=3, beta=3) # biased toward holding state
+            phi_regime = pm.Beta("phi_regime", alpha=3, beta=3)
             sigma_regime = pm.HalfNormal("sigma_regime", sigma=1)
             # Standard normal innovations for the regime evolution
-            regime_shocks = pm.Normal("regime_shocks", 0, 1, shape=(n_modifiers-1, n_seasons, n_states))
+            regime_shocks = pm.Normal("regime_shocks", 0, sigma_regime, shape=(n_modifiers-1, n_seasons, n_states))
             # Initialize the latent regime variable at its equilibrium (0.0 -> sigmoid(0) = 0.5)
             r_0 = pt.zeros((n_seasons, n_states))
             r_seq = pytensor.scan(
                 fn=ar_step,
                 sequences=[regime_shocks],
                 outputs_info=[r_0],
-                non_sequences=[phi_regime, sigma_regime**2],
+                non_sequences=[phi_regime],
                 return_updates=False
             )
             # Transform to the bounded (0, 1) space
@@ -434,7 +434,7 @@ def run_training():
                         'fR_global_mean', 'fR_state_sd', 'fR_state', 'fR_season_sd', 'fR_season', 'fR',         # fR
                         'delta_beta_state_mean',                                                                # delta_beta_mu
                         'psi_1', 'psi_2',                                                                       # spatial correlation strength
-                        'phi_regime', 'sigma_regime', 'scale_regime_0', 'scale_regime_1',                       # regime parameters
+                        'phi_regime', 'sigma_regime',                                                           # regime parameters
                         'omega_global_mean', 'omega_state_sd', 'omega_state', 'omega_season_sd', 'omega_season', 'omega', # baseline volatility
                         'omega_global_mean_shrinkage',
                         ]
@@ -686,7 +686,7 @@ def run_training():
             os.makedirs(os.path.join(cluster_output_folder,f'goodness-fit/{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}/'), exist_ok=True)
             for i, season in enumerate(seasons):
                 
-                fig,ax=plt.subplots(nrows=5, figsize=(8.3, 11.7), sharex=True)
+                fig,ax=plt.subplots(nrows=4, figsize=(8.3, 11.7), sharex=True)
                 # observed versus modeled
                 ax[0].plot(dt[i, :], posterior_predictive.posterior_predictive['data'].median(dim=['chain', 'draw']).values[i,s,:], linewidth=1, color='green')
                 ax[0].fill_between(dt[i, :],
@@ -740,8 +740,6 @@ def run_training():
             "psi_2",
             "phi_regime",
             "sigma_regime",
-            "scale_regime_0",
-            "scale_regime_1",
             "omega_global_mean",
             "omega_season_sd",
         ]
