@@ -244,9 +244,8 @@ def run_training():
             "modifier": np.arange(n_modifiers)
         }
 
-        def ar_step(eta_t, phi_t, sigma2_t, z_prev):
-            innovation_t = pt.sqrt(sigma2_t) * eta_t
-            z_t = phi_t * z_prev + innovation_t
+        def ar_step(eta_t, phi_t, z_prev):
+            z_t = phi_t * z_prev + eta_t
             return z_t
 
         # Build pyMC probablistic model
@@ -358,24 +357,15 @@ def run_training():
             log_omega = log_omega_global_mean + omega_state_sd * omega_state_raw[None, :] + omega_season_sd * omega_season_raw[:, None]
             omega = pm.Deterministic("omega", pt.exp(log_omega), dims=("season", "state")) 
 
-            # --- Time-varying blended volatility ---
-            # Calibrate Volatility Multipliers of each regime
-            scale_regime_0 = 1.0 + pm.HalfNormal("scale_regime_0", sigma=1.0)               # Spike mode multiplier
-            scale_regime_1 = pm.Deterministic("scale_regime_1", pt.as_tensor_variable(1.0)) 
-            
-            # Blend the volatilities over time
-            volatility_multiplier_t = (1 - r_t) * scale_regime_0 + r_t * scale_regime_1
-            sigma2_t = pm.Deterministic("sigma2_t", omega[None, ...] * volatility_multiplier_t)
-
             # --- Spatially correlated innovations ---
-            eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, shape=(n_modifiers-1, n_seasons, n_states))
+            eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=omega[None, ...], shape=(n_modifiers-1, n_seasons, n_states))
             eta_t = pt.einsum("ij,tsj->tsi", L_cov_shocks, eta_raw)
 
             # Step function
             z_0 = pt.zeros((n_seasons, n_states))
             z_seq = pytensor.scan(
                 fn=ar_step,
-                sequences=[eta_t, phi_t, sigma2_t],
+                sequences=[eta_t, phi_t],
                 outputs_info=[z_0],
                 non_sequences=[],
                 return_updates=False
@@ -719,7 +709,7 @@ def run_training():
                                 color='green', alpha=0.15)
                 
                 # within-season delta_beta_t, z_t, sigma2, eps
-                for j, par in enumerate(['delta_beta_t', 'z_t', 'phi_t', 'sigma2_t']):
+                for j, par in enumerate(['delta_beta_t', 'z_t', 'phi_t']):
                     ax[j+1].plot(modifier_dates, trace.posterior[par].median(dim=['chain', 'draw']).values[:,i,s], color='black', linewidth=0.5)
                     ax[j+1].fill_between(modifier_dates,
                             trace.posterior[par].quantile(dim=['chain', 'draw'], q=0.025).values[:,i,s],
