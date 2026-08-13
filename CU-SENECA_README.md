@@ -64,6 +64,21 @@ ssh -T git@github.com
 
 Which should print: "Hi <user>! You've successfully authenticated, but GitHub does not provide shell access.".
 
+5. The Seneca cluster is not configured to establish a connection to GH automatically when you ssh tunnel in. To make sure it is, open your `~/.bashrc` and paste this at the bottom.
+
+```bash
+if [ -z "$SSH_AUTH_SOCK" ]; then
+    eval $(ssh-agent -s) > /dev/null
+    ssh-add ~/.ssh/github 2>/dev/null
+fi
+```
+
+And then make a `~/.bash_profile` file forcing the cluster to load `~/.bashrc` upon login.
+
+```bash
+echo -e "\nif [ -f ~/.bashrc ]; then\n    . ~/.bashrc\nfi" >> ~/.bash_profile
+```
+
 ### Setting up the model and environment
 
 1. Clone the repository you want to work in.
