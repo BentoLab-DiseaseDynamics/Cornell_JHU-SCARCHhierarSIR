@@ -24,8 +24,6 @@ import pymc as pm
 import pytensor
 import pytensor.tensor as pt
 import arviz
-#pytensor.config.cxx = '/usr/bin/clang++'
-#pytensor.config.on_opt_error = "ignore"
 # jax and diffrax
 import jax.numpy as jnp
 # model package
