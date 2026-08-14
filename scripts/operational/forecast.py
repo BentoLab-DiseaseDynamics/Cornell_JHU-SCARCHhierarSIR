@@ -8,6 +8,9 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
+import warnings
+warnings.filterwarnings("ignore")
+
 # standard python libraries
 import os
 import json
@@ -466,7 +469,7 @@ def run_forecast():
         hv_out = hv_out.fillna('NA')
 
         # save result
-        hv_out.to_csv(os.path.join(output_folder, reference_date.strftime('%Y-%m-%d')+'-JHU_Cornell'+'-'+'SCARCHhierarSIR.csv'), index=False)
+        hv_out.to_csv(os.path.join(output_folder, reference_date.strftime('%Y-%m-%d')+'-Cornell_JHU'+'-'+f'{model_name}.csv'), index=False)
 
         # append to output list
         forecasts.append(hv_out)
