@@ -43,12 +43,12 @@ def run_forecast():
     ## forecasting settings
     challenge_start_reference_date = datetime(2025, 10, 18) # must be a saturday
     challenge_end_reference_date = datetime(2026, 5, 30)    # must be the last saturday of may
-    seasons = ['2025-2026',]        # script only works with one season
-    n_observations = 8              # use all data available in the forecast season
-    forecast_horizon = 20           # forecast 4 weeks ahead
+    season = '2025-2026'            
+    n_observations = 12             # use all data available in the forecast season
+    forecast_horizon = 20           # forecast sufficiently ahead to capture peaks
     n_preoptim = 500
-    n_sample = 10
-    n_tune = 10
+    n_sample = 25
+    n_tune = 25
     n_chains = 8
     sigma_grw = 0.01
 
@@ -66,9 +66,9 @@ def run_forecast():
 
     # derived products
     ## convert to a list of start and enddates (datetime)
-    n_seasons = len(seasons)
-    start_calibrations = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) + timedelta(days=start_simulation) for season in seasons]    # calibrations started at same time as simulation
-    modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) for season in seasons]
+    n_seasons = 1
+    start_calibrations = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) + timedelta(days=start_simulation)]    # calibrations started at same time as simulation
+    modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day)]
     model_name = 'SCARCHhierarSIR'
 
     # Get the clusters
@@ -112,7 +112,7 @@ def run_forecast():
         reference_date = dt[-1][-1] + timedelta(weeks=1) - timedelta(weeks=forecast_horizon)    # compute true reference date based on data instead of filename
 
         # output folder name
-        output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/forecast/{training_name}/reference_date-{reference_date.strftime('%Y-%m-%d')}/cluster_{cluster_idx}/')
+        output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/forecast/{training_name}/{season}/reference_date-{reference_date.strftime('%Y-%m-%d')}/cluster_{cluster_idx}/')
 
         # Get the hyperparameters
         # ~~~~~~~~~~~~~~~~~~~~~~~
@@ -225,7 +225,7 @@ def run_forecast():
         # construct coordinates
         coords = {
             "state": state_fips_index['abbreviation_state'].values,
-            "season": seasons,
+            "season": [season,],
             "modifier": np.arange(n_modifiers),
             "horizon_forecast": np.arange(forecast_horizon),
             "horizon_observation": [-i for i in range(1, n_observations + 1)]
@@ -425,12 +425,12 @@ def run_forecast():
 
         # remove 'seasons' dimension and flatten the 'chain' and 'draw' dimensions into 'draw'
         ## [forecast]
-        pred = pred.sel(season=seasons).squeeze("season", drop=True)
+        pred = pred.squeeze("season", drop=True)
         pred = (pred.stack(sample=("chain", "draw")).reset_index("sample", drop=True).rename({"sample": "draw"}))
         pred = pred.assign_coords(draw=np.arange(pred.sizes["draw"]))
         pred = pred.rename({"horizon_forecast": "horizon"})
         ## [observed]
-        obs = obs.sel(season=seasons).squeeze("season", drop=True)
+        obs = obs.squeeze("season", drop=True)
         obs = (obs.stack(sample=("chain", "draw")).reset_index("sample", drop=True).rename({"sample": "draw"}))
         obs = obs.assign_coords(draw=np.arange(obs.sizes["draw"]))
         obs = obs.rename({"horizon_observation": "horizon"})
