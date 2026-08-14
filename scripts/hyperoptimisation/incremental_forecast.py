@@ -48,9 +48,9 @@ def run_forecast():
     ## forecasting settings
     forecast_horizon = 4           # forecast sufficiently ahead to capture peaks
     n_preoptim = 500
-    n_sample = 15
-    n_tune = 15
-    n_chains = 8
+    n_sample = 25
+    n_tune = 25
+    n_chains = 12
     sigma_grw = 0.01
     model_name = 'SCARCHhierarSIR'
     ## challenge parameters
