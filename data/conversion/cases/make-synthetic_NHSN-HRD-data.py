@@ -160,7 +160,7 @@ future = future.drop(columns=['multiplier'])
 df_final = pd.concat([df_extended, future], ignore_index=True)
 
 # 6. visually check the results
-fips = 0  # choose your state
+fips = 33  # choose your state
 df_plot = df_final[df_final['fips_state'] == fips].sort_values('date')
 plt.figure()
 plt.plot(df_plot['date'], df_plot['influenza admissions'])

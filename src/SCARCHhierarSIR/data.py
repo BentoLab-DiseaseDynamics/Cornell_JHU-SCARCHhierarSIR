@@ -230,7 +230,7 @@ def get_NHSN_HRD_data(
     if type in ["preliminary", "preliminary_backfilled", "hypothetical"]:
         data_folder = Path(abs_dir) / f"../../data/interim/cases/NHSN-HRD_archive/{type}/"
     else:
-        raise ValueError("`type` must be 'preliminary' or 'preliminary_backfilled'.")
+        raise ValueError("`type` must be 'preliminary', 'preliminary_backfilled' or 'hypothetical'.")
     # determine if training or forecasting
     if forecast_horizon:
         assert len(start_calibrations) == len(modifier_reference_dates) == 1, 'length of `start_calibrations` and `modifier_reference_dates` must be equal to one when using this function for forecasting'

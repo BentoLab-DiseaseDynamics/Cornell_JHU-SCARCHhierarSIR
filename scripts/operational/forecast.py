@@ -1,5 +1,5 @@
 """
-This script makes a forecast for unseen data.
+This script makes a single forecast for unseen data.
 
 Author: T.W. Alleman
 Affiliation: Bento Lab, Cornell CVM
@@ -22,8 +22,6 @@ import pymc as pm
 import arviz
 import pytensor
 import pytensor.tensor as pt
-#pytensor.config.cxx = '/usr/bin/clang++'
-#pytensor.config.on_opt_error = "ignore"
 # jax and diffrax
 import jax.numpy as jnp
 # model package
@@ -40,7 +38,7 @@ def run_forecast():
 
     # global parameters go here
     ## training metadata
-    training_name = 'exclude_None-a_garch_0.0-b_garch_0.0'
+    training_name = 'exclude_None-a_garch_0.0-b_garch_0.0_phi_0.5'
     training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     ## forecasting settings
     challenge_start_reference_date = datetime(2025, 10, 18) # must be a saturday
