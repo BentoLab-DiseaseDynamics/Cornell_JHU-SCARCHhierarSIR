@@ -1,7 +1,7 @@
 """
 This script computes the seasonal average influenza hospital admissions from the 2023-2024 season until the last available season (currently: 2025-2026)..
 ..then extends the last available season (currently: 2025-2026) until epiweek 36 (end of August) using the seasonal average..
-..then makes a hypothetical next season (currently: 2026-2027) using the seasonal average, letting the user implement deviations from the historical average.
+..then makes a synthetic next season (currently: 2026-2027) using the seasonal average, letting the user implement deviations from the historical average.
 
 Authors: T.W. Alleman
 Affiliation: Bento Lab, Cornell CVM
@@ -23,7 +23,7 @@ from SCARCHhierarSIR.data import get_most_recent_filename
 
 # define paths globally
 abs_dir = os.path.dirname(__file__)
-save_data_path = '../../interim/cases/NHSN-HRD_archive/hypothetical/'
+save_data_path = '../../interim/cases/NHSN-HRD_archive/synthetic/'
 
 # modifications
 start_mmwr = 6                                                                  # modification start week (must be post-January 1, MMWR 1)
