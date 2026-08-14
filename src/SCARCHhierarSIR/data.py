@@ -178,6 +178,7 @@ def get_NHSN_HRD_data(
     modifier_reference_dates: Iterable[pd.Timestamp],
     n_observations: int,
     type: str = "preliminary_backfilled",
+    name: str = None,
     forecast_horizon: int = None,
     state_fips: Optional[Iterable[int]] = None
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -196,6 +197,9 @@ def get_NHSN_HRD_data(
         Data source type. Must be either:
         - "preliminary"
         - "preliminary_backfilled"
+        - "synthetic"
+    name: str, default=None
+        If `type` is "synthetic", name of dataset.
     forecast_horizon : int or None
         Number of weeks to extend beyond observed data for forecasting.
         Use 'None' for training (default)
@@ -228,9 +232,15 @@ def get_NHSN_HRD_data(
 
     # determine type of data to use
     if type in ["preliminary", "preliminary_backfilled", "synthetic"]:
-        data_folder = Path(abs_dir) / f"../../data/interim/cases/NHSN-HRD_archive/{type}/"
+        if type == "synthetic":
+            if not name:
+                raise ValueError("`type` must be 'preliminary', 'preliminary_backfilled' or 'synthetic'.")
+            data_folder = Path(abs_dir) / f"../../data/interim/cases/NHSN-HRD_archive/{type}/{name}"
+        else:
+            data_folder = Path(abs_dir) / f"../../data/interim/cases/NHSN-HRD_archive/{type}/"
     else:
         raise ValueError("`type` must be 'preliminary', 'preliminary_backfilled' or 'synthetic'.")
+
     # determine if training or forecasting
     if forecast_horizon:
         assert len(start_calibrations) == len(modifier_reference_dates) == 1, 'length of `start_calibrations` and `modifier_reference_dates` must be equal to one when using this function for forecasting'
