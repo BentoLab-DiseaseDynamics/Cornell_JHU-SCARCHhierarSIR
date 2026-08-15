@@ -122,13 +122,21 @@ squeue -u <netID>
 scancel <job_ID>
 ```
 
-3. See a history of your jobs:
+3. See a history of your jobs (to check runtime after finishing the job):
 
 ```bash
 sacct -u <netID> --format=JobID,State,NodeList,Elapsed,TotalCPU
 ```
 
-4. Reset git repository on cluster to latest version:
+4. Check efficiency of your job:
+
+```bash
+sstat -j <job_ID>.batch --format=JobID,NTasks,AveCPU,MinCPU,MinCPUNode,MinCPUTask,AveCPUFreq
+```
+
+The `AveCPU` gives an indication of the core-hours used by your job. Post-run, divide the `AveCPU` time by the total time it took to execute the job to compute the average thread-load of the job. Compare this to the resources you asked for to compute the thread-efficiency of your script.
+
+5. Reset git repository on cluster to latest version:
 
 ```bash
 git reset --hard && git clean -f -d
