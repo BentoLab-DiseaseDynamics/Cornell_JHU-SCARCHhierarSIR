@@ -42,6 +42,7 @@ def run_training():
     ## model-structural
     a_garch = 0.0
     b_garch = 0.0
+    phi = 0.5
     gamma = 1/3.5
     n_modifiers = 32
     modifier_length = 7
@@ -56,7 +57,7 @@ def run_training():
     n_chains = 8
     n_sample = 10
     n_burn = 0
-    training_name = f'exclude_None-a_garch_{a_garch}-b_garch_{b_garch}'
+    training_name = f'exclude_None-a_garch_{a_garch}-b_garch_{b_garch}_phi_{phi}'
     n_preoptim = 1000
     ## use previous sampling
     cont_sampling = True # To continue sampling, the number of chains and the observed data must match!
@@ -64,7 +65,7 @@ def run_training():
     ## save model-structural parameters and training metadata
     output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     os.makedirs(output_folder, exist_ok=True)
-    params = {"a_garch": a_garch, "b_garch": b_garch, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "modifier_length": modifier_length, "start_simulation": start_simulation,
+    params = {"a_garch": a_garch, "b_garch": b_garch, "phi": phi, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "modifier_length": modifier_length, "start_simulation": start_simulation,
               "modifier_ref_month": modifier_ref_month, "modifier_ref_day": modifier_ref_day, 'clustering_name': clustering_name,
                "observations": n_observations, 'seasons': seasons}
     with open(os.path.join(output_folder, "model_config.json"), "w") as f:
@@ -322,7 +323,7 @@ def run_training():
             z_0 = pt.zeros([n_seasons, n_states])
             eps_0 = pt.zeros([n_seasons, n_states])
             # Total AR persistence
-            phi = pm.Deterministic("phi", pt.as_tensor_variable(0.5)) #pm.Beta("phi", alpha=25, beta=25)
+            phi = pm.Deterministic("phi", pt.as_tensor_variable(phi))
 
             # sample iid standard normals as shocks
             eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, shape=(n_modifiers-1, n_seasons, n_states))

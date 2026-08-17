@@ -1,5 +1,5 @@
 """
-This script makes a forecast for unseen data.
+This script makes a single forecast for unseen data.
 
 Author: T.W. Alleman
 Affiliation: Bento Lab, Cornell CVM
@@ -7,6 +7,9 @@ Copyright (c) 2026 T.W. Alleman
 
 Licensed under CC BY-NC-SA 4.0
 """
+
+import warnings
+warnings.filterwarnings("ignore")
 
 # standard python libraries
 import os
@@ -22,8 +25,6 @@ import pymc as pm
 import arviz
 import pytensor
 import pytensor.tensor as pt
-#pytensor.config.cxx = '/usr/bin/clang++'
-#pytensor.config.on_opt_error = "ignore"
 # jax and diffrax
 import jax.numpy as jnp
 # model package
@@ -40,17 +41,17 @@ def run_forecast():
 
     # global parameters go here
     ## training metadata
-    training_name = 'exclude_None-a_garch_0.0-b_garch_0.0'
+    training_name = 'exclude_None-a_garch_0.0-b_garch_0.0_phi_0.5'
     training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     ## forecasting settings
     challenge_start_reference_date = datetime(2025, 10, 18) # must be a saturday
     challenge_end_reference_date = datetime(2026, 5, 30)    # must be the last saturday of may
-    seasons = ['2025-2026',]        # script only works with one season
-    n_observations = 8              # use all data available in the forecast season
-    forecast_horizon = 20           # forecast 4 weeks ahead
+    season = '2025-2026'            
+    n_observations = 12             # use all data available in the forecast season
+    forecast_horizon = 20           # forecast sufficiently ahead to capture peaks
     n_preoptim = 500
-    n_sample = 10
-    n_tune = 10
+    n_sample = 25
+    n_tune = 25
     n_chains = 8
     sigma_grw = 0.01
 
@@ -68,9 +69,9 @@ def run_forecast():
 
     # derived products
     ## convert to a list of start and enddates (datetime)
-    n_seasons = len(seasons)
-    start_calibrations = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) + timedelta(days=start_simulation) for season in seasons]    # calibrations started at same time as simulation
-    modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) for season in seasons]
+    n_seasons = 1
+    start_calibrations = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) + timedelta(days=start_simulation)]    # calibrations started at same time as simulation
+    modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day)]
     model_name = 'SCARCHhierarSIR'
 
     # Get the clusters
@@ -227,7 +228,7 @@ def run_forecast():
         # construct coordinates
         coords = {
             "state": state_fips_index['abbreviation_state'].values,
-            "season": seasons,
+            "season": [season,],
             "modifier": np.arange(n_modifiers),
             "horizon_forecast": np.arange(forecast_horizon),
             "horizon_observation": [-i for i in range(1, n_observations + 1)]
@@ -427,12 +428,12 @@ def run_forecast():
 
         # remove 'seasons' dimension and flatten the 'chain' and 'draw' dimensions into 'draw'
         ## [forecast]
-        pred = pred.sel(season=seasons).squeeze("season", drop=True)
+        pred = pred.squeeze("season", drop=True)
         pred = (pred.stack(sample=("chain", "draw")).reset_index("sample", drop=True).rename({"sample": "draw"}))
         pred = pred.assign_coords(draw=np.arange(pred.sizes["draw"]))
         pred = pred.rename({"horizon_forecast": "horizon"})
         ## [observed]
-        obs = obs.sel(season=seasons).squeeze("season", drop=True)
+        obs = obs.squeeze("season", drop=True)
         obs = (obs.stack(sample=("chain", "draw")).reset_index("sample", drop=True).rename({"sample": "draw"}))
         obs = obs.assign_coords(draw=np.arange(obs.sizes["draw"]))
         obs = obs.rename({"horizon_observation": "horizon"})
@@ -468,7 +469,7 @@ def run_forecast():
         hv_out = hv_out.fillna('NA')
 
         # save result
-        hv_out.to_csv(os.path.join(output_folder, reference_date.strftime('%Y-%m-%d')+'-JHU_Cornell'+'-'+'SCARCHhierarSIR.csv'), index=False)
+        hv_out.to_csv(os.path.join(output_folder, reference_date.strftime('%Y-%m-%d')+'-Cornell_JHU'+'-'+f'{model_name}.csv'), index=False)
 
         # append to output list
         forecasts.append(hv_out)
@@ -479,7 +480,7 @@ def run_forecast():
 
     # concatenate all forecasts and save them
     output = pd.concat(forecasts, axis=0)
-    output.to_csv(os.path.join(output_folder,'../..',reference_date.strftime('%Y-%m-%d')+'-JHU_Cornell'+'-'+f'{model_name}.csv'), index=False)
+    output.to_csv(os.path.join(output_folder,'../..',reference_date.strftime('%Y-%m-%d')+'-Cornell_JHU'+'-'+f'{model_name}.csv'), index=False)
 
     print(f'\nforecasting complete!\n')
 

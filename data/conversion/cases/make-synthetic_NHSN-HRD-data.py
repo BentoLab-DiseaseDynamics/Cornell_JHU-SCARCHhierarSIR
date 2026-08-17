@@ -1,7 +1,7 @@
 """
 This script computes the seasonal average influenza hospital admissions from the 2023-2024 season until the last available season (currently: 2025-2026)..
 ..then extends the last available season (currently: 2025-2026) until epiweek 36 (end of August) using the seasonal average..
-..then makes a hypothetical next season (currently: 2026-2027) using the seasonal average, letting the user implement deviations from the historical average.
+..then makes a synthetic next season (currently: 2026-2027) using the seasonal average, letting the user implement deviations from the historical average.
 
 Authors: T.W. Alleman
 Affiliation: Bento Lab, Cornell CVM
@@ -23,11 +23,12 @@ from SCARCHhierarSIR.data import get_most_recent_filename
 
 # define paths globally
 abs_dir = os.path.dirname(__file__)
-save_data_path = '../../interim/cases/NHSN-HRD_archive/hypothetical/'
 
 # modifications
-start_mmwr = 6                                                                  # modification start week (must be post-January 1, MMWR 1)
-factors = [0.05, 0.15, 0.45, 1.35, 1.35, 0.45, 0.45, 0.15, 0.15, 0.05, 0.05]    # multiplicative scaling of seasonal average number of influenza admissions
+name = 'early_season_decrease'
+start_mmwr = 40
+factors = [-0.1, -0.15, -0.20, -0.25, -0.30, -0.35, -0.40, -0.45, -0.50, -0.55, -0.60, -0.65, -0.65, -0.65, -0.50, -0.30, -0.30, -0.20, -0.10, 0.00, 0.25, 0.50, 0.50, 0.50, 0.50, 0.25, 0.15]       # multiplicative scaling of seasonal average number of influenza admissions
+save_data_path = f'../../interim/cases/NHSN-HRD_archive/synthetic/{name}'
 
 ######################################################################
 ## Compute seasonal average number of influenza hospital admissions ##
@@ -99,7 +100,7 @@ merged['date'] = merged['date'].fillna(
         errors='coerce'
     )
 )
-print(merged['influenza admissions'].isna().sum())
+
 # 7. merge with the original data
 df_extended = pd.concat(
     [df[cols_to_keep], merged],
@@ -148,26 +149,26 @@ future = future.copy()
 future['date'] = future['MMWR'].map(week_to_date)
 
 # 4. make a modification of the future
-unique_weeks = np.array(sorted(future['MMWR'].unique()))
-mask = np.isin(unique_weeks, range(start_mmwr, start_mmwr + len(factors)))
-target_weeks = unique_weeks[mask]
-week_multiplier = dict(zip(target_weeks, 1+np.array(factors)))
+week_order = list(range(37, 53)) + list(range(1, 37))
+start_idx = week_order.index(start_mmwr)
+target_weeks = week_order[start_idx:start_idx + len(factors)]
+week_multiplier = dict(zip(target_weeks, 1 + np.array(factors)))
 future['multiplier'] = future['MMWR'].map(week_multiplier).fillna(1.0)
-future['influenza admissions'] = future['influenza admissions'] * future['multiplier']
+future['influenza admissions'] *= future['multiplier']
 future = future.drop(columns=['multiplier'])
 
 # 5. append to the dataset
 df_final = pd.concat([df_extended, future], ignore_index=True)
 
 # 6. visually check the results
-fips = 0  # choose your state
+fips = 37  # choose your state
 df_plot = df_final[df_final['fips_state'] == fips].sort_values('date')
-plt.figure()
+plt.figure(figsize=(8.3, 11.7/4))
 plt.plot(df_plot['date'], df_plot['influenza admissions'])
 plt.title(f'Influenza admissions – FIPS {fips}')
 plt.xlabel('Date')
 plt.ylabel('Admissions')
-#plt.show()
+plt.show()
 plt.close()
 
 ##################

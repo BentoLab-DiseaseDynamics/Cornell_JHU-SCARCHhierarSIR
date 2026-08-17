@@ -35,7 +35,7 @@ jobs:
         shell: bash
         working-directory: forecast-repo
         run: |
-          LATEST_FILE=$(ls data/interim/calibration/forecast/exclude_None-wGARCH/*.csv | sort -r | head -n 1)
+          LATEST_FILE=$(ls data/interim/calibration/forecast/exclude_None-*/*.csv | sort -r | head -n 1)
           ABS_PATH="${GITHUB_WORKSPACE}/forecast-repo/${LATEST_FILE}"
           FILENAME=$(basename "$LATEST_FILE") 
           REFERENCE_DATE=${FILENAME:0:10}
