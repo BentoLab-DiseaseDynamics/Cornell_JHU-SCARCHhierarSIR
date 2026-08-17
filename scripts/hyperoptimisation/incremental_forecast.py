@@ -49,8 +49,8 @@ def run_forecast():
     forecast_horizon = 4           # forecast sufficiently ahead to capture peaks
     n_preoptim = 500
     n_sample = 25
-    n_tune = 25
-    n_chains = 12
+    n_burn = 5
+    n_chains = 8
     sigma_grw = 0.01
     model_name = 'SCARCHhierarSIR'
     ## challenge parameters
@@ -380,11 +380,16 @@ def run_forecast():
                 print('\nstarting the sampler..\n')
 
                 with model:
+                    # manual step size
+                    step = pm.NUTS(step_scale=0.0025, target_accept=0.8, max_treedepth=12) # step_scale set to 0.02 --> step_size_bar of 0.0031 (matches step_size_bar of 0.0035 when tuning 50 steps around mid Jan)
                     # run sampler without tuning
-                    trace = pm.sample(n_sample, tune=n_tune, chains=n_chains, init='adapt_diag', cores=n_chains, mp_ctx=mp.get_context("spawn"), progressbar=True)
+                    trace = pm.sample(n_sample, tune=0, chains=n_chains, init='adapt_diag', step=step, cores=n_chains, mp_ctx=mp.get_context("spawn"), progressbar=True)
 
                 print('\n..finished sampling\n')
 
+                # manual burn
+                trace = trace.isel(draw=slice(n_burn, None))
+                
                 # Generate traces
                 variables2plot = ['rho', 'fI', 'fR', 'phi', 'omega', 'sigma2_0']
 
