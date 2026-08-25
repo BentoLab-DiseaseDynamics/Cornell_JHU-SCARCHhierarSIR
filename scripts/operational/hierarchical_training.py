@@ -8,7 +8,6 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
-
 # standard python libraries
 import os
 import json
@@ -31,6 +30,11 @@ from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_
 from SCARCHhierarSIR.SIR_model import get_jax_jitted_model, make_sol_op
 from SCARCHhierarSIR.pymc_model import AR_GARCH_step, compute_season_weights, weighted_nb_logp, weighted_nb_random, trace_to_initvals, concat_traces
 from SCARCHhierarSIR.preoptimization import preoptimize_parameters, compute_initial_effects
+
+from SCARCHhierarSIR.jax_model import ForwardOp, forward_jitted, forward_vjp_jitted
+
+import numpyro
+numpyro.set_host_device_count(8)
 
 # needed to use the 'spawn' multiprocessing context manager
 def run_training():
@@ -55,12 +59,12 @@ def run_training():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 10
+    n_sample = 3
     n_burn = 0
-    training_name = f'exclude_None-a_garch_{a_garch}-b_garch_{b_garch}_phi_{phi}'
-    n_preoptim = 1000
+    training_name = f'test'
+    n_preoptim = 300
     ## use previous sampling
-    cont_sampling = True # To continue sampling, the number of chains and the observed data must match!
+    cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
 
     ## save model-structural parameters and training metadata
     output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
@@ -227,6 +231,13 @@ def run_training():
         print("Mean reconstruction error:", init["logit_fR"]["error_mean"])
         print("Max reconstruction error:", init["logit_fR"]["error_max"])
 
+        # Build jax model
+        # ~~~~~~~~~~~~~~~
+
+        population = np.asarray(demo, dtype=np.float64)
+
+        forward_op = ForwardOp(args_static=args_static, forward_jitted=forward_jitted, forward_vjp_jitted=forward_vjp_jitted)
+
         # Build tempored NB distribution
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -239,6 +250,7 @@ def run_training():
 
         # construct coordinates
         coords = {
+            "observation": np.arange(n_observations),
             "state": state_fips_index['abbreviation_state'].values,
             "season": seasons,
             "modifier": np.arange(n_modifiers)
@@ -319,16 +331,12 @@ def run_training():
             delta_beta_state_mean = pm.Deterministic("delta_beta_state_mean", (1/4) * pt.einsum("ij,mj->mi", L_cov_modifiers, delta_beta_raw), dims=("modifier","state"))
 
             # --- AR(1) kernel ---
-            # Initial position
-            z_0 = pt.zeros([n_seasons, n_states])
-            eps_0 = pt.zeros([n_seasons, n_states])
+
             # Total AR persistence
             phi = pm.Deterministic("phi", pt.as_tensor_variable(phi))
 
             # sample iid standard normals as shocks
             eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, shape=(n_modifiers-1, n_seasons, n_states))
-            # correlate them across space using the precision matrix
-            eta = pm.Deterministic("eta", pt.einsum("ij,tsj->tsi", L_cov_shocks, eta_raw))
 
             # --- GARCH(1,0) = ARCH(1) parameters ---    
             ## baseline noise
@@ -352,37 +360,20 @@ def run_training():
             else:
                 a_garch = pm.Beta("a_garch",alpha=1, beta=5)    # --> baseline assumption: no volatility clustering
             b_garch = pm.Deterministic("b_garch", pt.as_tensor_variable(b_garch))
-            # Initial noise   
-            sigma2_0 = pm.Deterministic("sigma2_0", omega, dims=("season", "state"))
 
-            # Run AR-GARCH scan over T steps
-            z_seq, sigma2_seq, eps_seq = pytensor.scan(
-                fn=AR_GARCH_step,
-                sequences=[eta,],
-                outputs_info=[z_0, sigma2_0, eps_0],
-                non_sequences=[phi, omega, a_garch, b_garch],
-                return_updates=False
-            )
+            # run forward simulation model
+            H_raw, z_raw, sigma2_raw, eps_raw = forward_op(eta_raw, phi, omega, a_garch, b_garch, delta_beta_state_mean, L_cov_shocks, beta, rho, fI, fR, gamma, population, ts)
 
-            # Register deterministic variables to inspect later
-            z = pm.Deterministic("z", pt.concatenate([z_0[None, ...], z_seq], axis=0))  # prepend initial condition
-            sigma2 = pm.Deterministic("sigma2", pt.concatenate([sigma2_0[None, ...], sigma2_seq], axis=0))
-            eps = pm.Deterministic("eps", pt.concatenate([eps_0[None, ...], eps_seq], axis=0))
-            delta_beta = pm.Deterministic("delta_beta", z + delta_beta_state_mean[:, None, :])
-
-            # concatenate parameters along the last axis
-            args_diff = pt.concatenate(
-                [beta[:, :, None], rho[:, :, None], fI[:, :, None], fR[:, :, None], pt.transpose(delta_beta, (1, 2, 0))],
-                axis=2
-            )
-
-            # Run forward simulation model
-            ys = 7*sol_op(args_diff, args_nodiff)
-            ys = pt.math.softplus(ys)
+            # put output in posterior
+            H = pm.Deterministic("H", 7 * pt.math.softplus(H_raw), dims=("season", "state", "observation"))
+            z = pm.Deterministic("z", z_raw, dims=("modifier", "season", "state"))
+            pm.Deterministic("delta_beta", z + delta_beta_state_mean[:, None, :])
+            pm.Deterministic("sigma2", sigma2_raw, dims=("modifier", "season", "state"),)
+            pm.Deterministic("eps", eps_raw, dims=("modifier", "season", "state"))
 
             # Compute likelihood
             alpha_inv = pm.HalfNormal("alpha_inv", sigma=0.002/3, dims="state")
-            pm.CustomDist("data", ys, 1/alpha_inv, weights, logp=weighted_nb_logp, random=weighted_nb_random, observed=7*data)
+            pm.CustomDist("data", H, 1/alpha_inv, weights, logp=weighted_nb_logp, random=weighted_nb_random, observed=7*data)
 
         # Sample pyMC model
         # ~~~~~~~~~~~~~~~~~
@@ -399,12 +390,11 @@ def run_training():
             else:
                 assert n_sample > n_burn, 'number of burned samples cannot exceed total number of samples'
             # set step size directly
-            # for US as a whole: step_scale: 0.00175 + max_treedepth 13, For U.S. census regions clusters: step_scale: 0.005 + max_treedepth 10
-            step = pm.NUTS(step_scale=0.00175, target_accept=0.8, max_treedepth=12)       
-            # run sampler without tuning
-            trace = pm.sample(n_sample, tune=0, chains=n_chains, progressbar=True,
-                            cores=n_chains, init='adapt_diag', step = step,
-                            mp_ctx=mp.get_context("spawn"), initvals=initvals)
+            from pymc.sampling.jax import sample_numpyro_nuts
+            trace = sample_numpyro_nuts(n_sample, tune=3, chains=n_chains, progressbar=True, initvals=initvals,
+                                        jitter=False, chain_method='parallel',
+                                        nuts_kwargs={'step_size': 0.0001, 'adapt_step_size': False})
+  
 
         print('\n..finished sampling\n')
         print('\nsaving traces\n')
@@ -434,7 +424,7 @@ def run_training():
                         'phi',                                                                                  # AR 
                         'omega_global_mean', 'omega_state_sd', 'omega_state', 'omega_season_sd', 'omega_season', 'omega', # GARCH(1,0) parameters
                         'omega_global_mean_shrinkage',
-                        'a_garch', 'b_garch', 'sigma2_0',
+                        'a_garch', 'b_garch',
                         ]
 
         # Save original traces
@@ -781,8 +771,4 @@ def run_training():
     print(f'\ntraining complete!\n')
 
 # runs the script
-if __name__ == "__main__":
-
-    mp.set_start_method("spawn", force=True)
-
-    run_training()
+run_training()
