@@ -438,7 +438,6 @@ def forward_vjp_jax(
     # Evaluate forward function and construct VJP
     outputs, pullback = jax.vjp(
         forward_fn,
-        (
             eta_raw,
             phi,
             omega,
@@ -453,7 +452,6 @@ def forward_vjp_jax(
             gamma,
             population,
             ts,
-        ),
     )
 
     H, z, sigma2, eps = outputs
@@ -756,7 +754,6 @@ class ForwardVJPOp(Op):
             gH,
             self.args_static,
         )
-
         for output, grad in zip(outputs, grads):
             output[0] = np.asarray(
                 grad,
