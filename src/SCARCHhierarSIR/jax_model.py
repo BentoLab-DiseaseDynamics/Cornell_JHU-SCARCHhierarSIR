@@ -15,6 +15,12 @@ def SIR_vector_field(t, y, args):
 
     # unpack parameters
     beta, daily_ts, delta_beta_daily, gamma, rho = args
+    
+    # prevent negative state values due to rounding errors
+    S = jax.nn.softplus(S)
+    I = jax.nn.softplus(I)
+    R = jax.nn.softplus(R)
+    H = jax.nn.softplus(H)
 
     # total population
     N = S + I + R
@@ -754,11 +760,8 @@ class ForwardVJPOp(Op):
             gH,
             self.args_static,
         )
-        for output, grad in zip(outputs, grads):
-            output[0] = np.asarray(
-                grad,
-                dtype=np.float64,
-            )
+        for i,(output, grad) in enumerate(zip(outputs, grads)):
+            output[0] = np.asarray(grad)
 
 
 
