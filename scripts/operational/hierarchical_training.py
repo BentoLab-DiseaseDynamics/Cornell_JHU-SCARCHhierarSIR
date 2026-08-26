@@ -59,10 +59,10 @@ def run_training():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 8
-    n_sample = 3
+    n_sample = 25
     n_burn = 0
     training_name = f'test'
-    n_preoptim = 300
+    n_preoptim = 500
     ## use previous sampling
     cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
 
@@ -391,7 +391,7 @@ def run_training():
                 assert n_sample > n_burn, 'number of burned samples cannot exceed total number of samples'
             # set step size directly
             from pymc.sampling.jax import sample_numpyro_nuts
-            trace = sample_numpyro_nuts(n_sample, tune=3, chains=n_chains, progressbar=True, initvals=initvals,
+            trace = sample_numpyro_nuts(n_sample, tune=25, chains=n_chains, progressbar=True, initvals=initvals,
                                         jitter=False, chain_method='parallel',
                                         nuts_kwargs={'step_size': 0.0001, 'adapt_step_size': False})
   
