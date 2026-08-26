@@ -20,21 +20,75 @@ from scipy.stats import linregress
 from datetime import datetime, timedelta
 # pyMC / pytensor
 import pymc as pm
-import pytensor
-import pytensor.tensor as pt
 import arviz
 # jax and diffrax
 import jax.numpy as jnp
 # model package
 from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data
 from SCARCHhierarSIR.SIR_model import get_jax_jitted_model, make_sol_op
-from SCARCHhierarSIR.pymc_model import AR_GARCH_step, compute_season_weights, weighted_nb_logp, weighted_nb_random, trace_to_initvals, concat_traces
+from SCARCHhierarSIR.pymc_model import trace_to_initvals, concat_traces
 from SCARCHhierarSIR.preoptimization import preoptimize_parameters, compute_initial_effects
 
-from SCARCHhierarSIR.jax_model import ForwardOp, forward_jitted, forward_vjp_jitted
+from SCARCHhierarSIR.jax_model import ForwardOp, forward_jitted, forward_vjp_jitted, forward_jax
 
 import numpyro
 numpyro.set_host_device_count(8)
+
+import jax
+import jax.numpy as jnp
+import numpyro.distributions as dist
+from numpyro.infer import NUTS, MCMC, Predictive
+
+def weighted_nb_logp(value, mu, alpha, weights):
+    """
+    Tempered negative-binomial log probability.
+
+    Parameters
+    ----------
+    value : jax.Array
+        Shape (n_seasons, n_states, n_observations).
+
+    mu : jax.Array
+        Shape (n_seasons, n_states, n_observations).
+
+    alpha : jax.Array
+        Shape (n_states,).
+
+    weights : jax.Array
+        Shape (n_seasons, n_states, 1).
+
+    Returns
+    -------
+    jax.Array
+        Scalar weighted log probability.
+    """
+
+    value = jnp.moveaxis(value, 1, -1)
+    mu = jnp.moveaxis(mu, 1, -1)
+    weights = jnp.moveaxis(weights, 1, -1)
+
+    logp = dist.NegativeBinomial2(
+        mean=mu,
+        concentration=alpha,
+    ).log_prob(value)
+
+    return jnp.sum(weights * logp)
+
+
+def compute_season_weights(data):
+
+    data = jnp.asarray(data)
+
+    max_per_season_state = jnp.sqrt(
+        jnp.mean(data, axis=2)
+    )
+
+    inv_max = 1.0 / max_per_season_state
+
+    normalized = inv_max / jnp.mean(inv_max)
+
+    return normalized[:, :, None]
+
 
 # needed to use the 'spawn' multiprocessing context manager
 def run_training():
@@ -211,11 +265,11 @@ def run_training():
         init = compute_initial_effects(args_diff_preoptim)
 
         # make dictionary with initial sampler values
-        initvals = n_chains * [{'alpha_inv': 0.05 * pt.ones(n_states), 'delta_beta_raw': init["delta_beta_mu"] / 0.25,
+        initvals = n_chains * [{'alpha_inv': 0.05 * jnp.ones(n_states), 'delta_beta_raw': init["delta_beta_mu"] / 0.25,
                 'log_rho_global_mean': init["log_rho"]["global"], 'rho_state_sd': 0.2, 'rho_state_raw': init["log_rho"]["state"] / 0.2, 'rho_season_sd': 0.2, 'rho_season_raw': init["log_rho"]["season"] / 0.2,
                 'log_fI_global_mean': init["log_fI"]["global"], 'fI_state_sd': 0.2, 'fI_state_raw': init["log_fI"]["state"] / 0.2, 'fI_season_sd': 0.2, 'fI_season_raw': init["log_fI"]["season"] / 0.2,
                 'logit_fR_global_mean': init["logit_fR"]["global"], 'fR_state_sd': 0.2, 'fR_state_raw': init["logit_fR"]["state"] / 0.2, 'fR_season_sd': 0.2, 'fR_season_raw': init["logit_fR"]["season"] / 0.2,
-                'phi': 0.50, 'log_omega_global_mean': pt.log(0.05/3), 'omega_global_mean_shrinkage': 0.05/3}]
+                'phi': 0.50, 'log_omega_global_mean': jnp.log(0.05/3), 'omega_global_mean_shrinkage': 0.05/3}]
 
         print('\nparameter hierarchy reconstruction\n')
 
@@ -236,8 +290,6 @@ def run_training():
 
         population = np.asarray(demo, dtype=np.float64)
 
-        forward_op = ForwardOp(args_static=args_static, forward_jitted=forward_jitted, forward_vjp_jitted=forward_vjp_jitted)
-
         # Build tempored NB distribution
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -253,165 +305,593 @@ def run_training():
             "observation": np.arange(n_observations),
             "state": state_fips_index['abbreviation_state'].values,
             "season": seasons,
-            "modifier": np.arange(n_modifiers)
+            "modifier": np.arange(n_modifiers),
+            "modifier_eta": np.arange(n_modifiers-1)
         }
 
-        # Build pyMC probablistic model
-        with pm.Model(coords=coords) as model:
+        dims = {
+            # ascertainment
+            "rho_state_raw": ["state"],
+            "rho_season_raw": ["season"],
+            "rho_state": ["state"],
+            "rho_season": ["season"],
+            "rho": ["season", "state"],
 
-            # Hyperparameters '<parameter>_<level>_<type>' with level: {global, state, season} and type: {mean, sd, offset}
+            # initial infected
+            "fI_state_raw": ["state"],
+            "fI_season_raw": ["season"],
+            "fI_state": ["state"],
+            "fI_season": ["season"],
+            "fI": ["season", "state"],
 
-            ## transmission coefficient: beta (fixed)
-            beta = pt.as_tensor_variable(0.455*np.ones(shape=(n_seasons,n_states)))
+            # initial recovered
+            "fR_state_raw": ["state"],
+            "fR_season_raw": ["season"],
+            "fR_state": ["state"],
+            "fR_season": ["season"],
+            "fR": ["season", "state"],
 
-            ## ascertainment: rho
-            ### global
-            log_rho_global_mean = pm.Normal("log_rho_global_mean", mu=init["log_rho"]["global"], sigma=1/3)    
-            rho_global_mean = pm.Deterministic("rho_global_mean", pt.exp(log_rho_global_mean))
-            ### state
-            rho_state_sd = pm.HalfNormal("rho_state_sd", sigma=1/5)      
-            rho_state_raw = pm.Normal("rho_state_raw", 0, 1, dims="state")
-            rho_state = pm.Deterministic("rho_state", pt.exp(rho_state_sd * rho_state_raw), dims="state")
-            ### season
-            rho_season_sd = pm.HalfNormal("rho_season_sd", sigma=1/5)
-            rho_season_raw = pm.Normal("rho_season_raw", 0, 1, dims="season")
-            rho_season = pm.Deterministic("rho_season", pt.exp(rho_season_sd * rho_season_raw), dims="season")
-            log_rho = log_rho_global_mean + rho_state_sd * rho_state_raw[None, :] + rho_season_sd * rho_season_raw[:, None]
-            rho = pm.Deterministic("rho", pt.exp(log_rho), dims=("season", "state"))
+            # spatial/temporal modifiers
+            "delta_beta_raw": ["modifier", "state"],
+            "delta_beta_state_mean": ["modifier", "state"],
 
-            ## initial infected: fI
-            ### global
-            log_fI_global_mean = pm.Normal("log_fI_global_mean", mu=init["log_fI"]["global"], sigma=1/3)    
-            fI_global_mean = pm.Deterministic("fI_global_mean", pt.exp(log_fI_global_mean))
-            ### state
-            fI_state_sd = pm.HalfNormal("fI_state_sd", sigma=1/5)      
-            fI_state_raw = pm.Normal("fI_state_raw", 0, 1, dims="state")
-            fI_state = pm.Deterministic("fI_state", pt.exp(fI_state_sd * fI_state_raw), dims="state")
-            ### season
-            fI_season_sd = pm.HalfNormal("fI_season_sd", sigma=1/5)
-            fI_season_raw = pm.Normal("fI_season_raw", 0, 1, dims="season")
-            fI_season = pm.Deterministic("fI_season", pt.exp(fI_season_sd * fI_season_raw), dims="season")
-            log_fI = log_fI_global_mean + fI_state_sd * fI_state_raw[None, :] + fI_season_sd * fI_season_raw[:, None]
-            fI = pm.Deterministic("fI", pt.exp(log_fI), dims=("season", "state"))
+            "eta_raw": [
+                "modifier_eta",
+                "season",
+                "state",
+            ],
 
-            ## initial recovered: fR
-            ### global
-            logit_fR_global_mean = pm.Normal("logit_fR_global_mean", mu=pm.math.logit(0.4), sigma=1.0)
-            fR_global_mean = pm.Deterministic("fR_global_mean", pm.math.sigmoid(logit_fR_global_mean))
-            ### state
-            fR_state_sd = pm.HalfNormal("fR_state_sd", sigma=1/5)
-            fR_state_raw = pm.Normal("fR_state_raw", 0, 1, dims="state")
-            fR_state = pm.Deterministic("fR_state", pt.exp(fR_state_sd * fR_state_raw), dims="state")
-            ### season
-            fR_season_sd = pm.HalfNormal("fR_season_sd", sigma=1/5)
-            fR_season_raw = pm.Normal("fR_season_raw", 0, 1, dims="season")
-            fR_season = pm.Deterministic("fR_season", pt.exp(fR_season_sd * fR_season_raw), dims="season")
-            logit_fR = logit_fR_global_mean + fR_state_sd * fR_state_raw[None, :] + fR_season_sd * fR_season_raw[:, None]
-            fR = pm.Deterministic("fR", pm.math.sigmoid(logit_fR), dims=("season", "state"))
+            "omega_state_raw": ["state"],
+            "omega_season_raw": ["season"],
 
-            # ------- AR-GARCH modifiers -----------
+            "omega_state": ["state"],
+            "omega_season": ["season"],
+            "omega": ["season", "state"],
 
+            "z": [
+                "modifier",
+                "season",
+                "state",
+            ],
+
+            "delta_beta": [
+                "modifier",
+                "season",
+                "state",
+            ],
+
+            "sigma2": [
+                "modifier",
+                "season",
+                "state",
+            ],
+
+            "eps": [
+                "modifier",
+                "season",
+                "state",
+            ],
+
+            "H": [
+                "season",
+                "state",
+                "observation",
+            ],
+
+            "alpha_inv": ["state"],
+            "alpha": ["state"],
+        }
+
+        def numpyro_model(data, weights, adj, population, ts, gamma, beta, phi, init, args_static, n_states, n_seasons, n_modifiers):
+            
+            # ============================================================
+            # Transmission coefficient
+            # ============================================================
+
+            beta = jnp.asarray(beta)
+
+            # ============================================================
+            # Ascertainment: rho
+            # ============================================================
+
+            # Global
+            log_rho_global_mean = numpyro.sample(
+                "log_rho_global_mean",
+                dist.Normal(
+                    init["log_rho"]["global"],
+                    1 / 3,
+                ),
+            )
+
+            numpyro.deterministic(
+                "rho_global_mean",
+                jnp.exp(log_rho_global_mean),
+            )
+
+            # State
+            rho_state_sd = numpyro.sample(
+                "rho_state_sd",
+                dist.HalfNormal(1 / 5),
+            )
+
+            rho_state_raw = numpyro.sample(
+                "rho_state_raw",
+                dist.Normal(0, 1).expand([n_states]),
+            )
+
+            numpyro.deterministic(
+                "rho_state",
+                jnp.exp(rho_state_sd * rho_state_raw),
+            )
+
+            # Season
+            rho_season_sd = numpyro.sample(
+                "rho_season_sd",
+                dist.HalfNormal(1 / 5),
+            )
+
+            rho_season_raw = numpyro.sample(
+                "rho_season_raw",
+                dist.Normal(0, 1).expand([n_seasons]),
+            )
+
+            numpyro.deterministic(
+                "rho_season",
+                jnp.exp(rho_season_sd * rho_season_raw),
+            )
+
+            log_rho = (
+                log_rho_global_mean
+                + rho_state_sd * rho_state_raw[None, :]
+                + rho_season_sd * rho_season_raw[:, None]
+            )
+
+            rho = jnp.exp(log_rho)
+
+            numpyro.deterministic("rho", rho)
+
+
+            # ============================================================
+            # Initial infected: fI
+            # ============================================================
+
+            log_fI_global_mean = numpyro.sample(
+                "log_fI_global_mean",
+                dist.Normal(
+                    init["log_fI"]["global"],
+                    1 / 3,
+                ),
+            )
+
+            numpyro.deterministic(
+                "fI_global_mean",
+                jnp.exp(log_fI_global_mean),
+            )
+
+            fI_state_sd = numpyro.sample(
+                "fI_state_sd",
+                dist.HalfNormal(1 / 5),
+            )
+
+            fI_state_raw = numpyro.sample(
+                "fI_state_raw",
+                dist.Normal(0, 1).expand([n_states]),
+            )
+
+            numpyro.deterministic(
+                "fI_state",
+                jnp.exp(fI_state_sd * fI_state_raw),
+            )
+
+            fI_season_sd = numpyro.sample(
+                "fI_season_sd",
+                dist.HalfNormal(1 / 5),
+            )
+
+            fI_season_raw = numpyro.sample(
+                "fI_season_raw",
+                dist.Normal(0, 1).expand([n_seasons]),
+            )
+
+            numpyro.deterministic(
+                "fI_season",
+                jnp.exp(fI_season_sd * fI_season_raw),
+            )
+
+            log_fI = (
+                log_fI_global_mean
+                + fI_state_sd * fI_state_raw[None, :]
+                + fI_season_sd * fI_season_raw[:, None]
+            )
+
+            fI = jnp.exp(log_fI)
+
+            numpyro.deterministic("fI", fI)
+
+
+            # ============================================================
+            # Initial recovered: fR
+            # ============================================================
+
+            logit_fR_global_mean = numpyro.sample(
+                "logit_fR_global_mean",
+                dist.Normal(
+                    jax.scipy.special.logit(0.4),
+                    1.0,
+                ),
+            )
+
+            fR_global_mean = jax.nn.sigmoid(
+                logit_fR_global_mean
+            )
+
+            numpyro.deterministic(
+                "fR_global_mean",
+                fR_global_mean,
+            )
+
+            fR_state_sd = numpyro.sample(
+                "fR_state_sd",
+                dist.HalfNormal(1 / 5),
+            )
+
+            fR_state_raw = numpyro.sample(
+                "fR_state_raw",
+                dist.Normal(0, 1).expand([n_states]),
+            )
+
+            numpyro.deterministic(
+                "fR_state",
+                jnp.exp(fR_state_sd * fR_state_raw),
+            )
+
+            fR_season_sd = numpyro.sample(
+                "fR_season_sd",
+                dist.HalfNormal(1 / 5),
+            )
+
+            fR_season_raw = numpyro.sample(
+                "fR_season_raw",
+                dist.Normal(0, 1).expand([n_seasons]),
+            )
+
+            numpyro.deterministic(
+                "fR_season",
+                jnp.exp(fR_season_sd * fR_season_raw),
+            )
+
+            logit_fR = (
+                logit_fR_global_mean
+                + fR_state_sd * fR_state_raw[None, :]
+                + fR_season_sd * fR_season_raw[:, None]
+            )
+
+            fR = jax.nn.sigmoid(logit_fR)
+
+            numpyro.deterministic("fR", fR)
+
+
+            # ============================================================
             # Spatial correlation
-            psi_1 = 1e-5 + (1-1e-5)*pm.Beta("psi_1", 3, 3) # always had one chain getting stuck at exactly 0
-            psi_2 = pm.Beta("psi_2", 3, 3)
+            # ============================================================
 
-            I = pt.eye(n_states)
-            W = pt.as_tensor_variable(adj)
-            D = pt.diag(pt.sum(W, axis=1))
+            psi_1 = 1e-5 + (
+                1 - 1e-5
+            ) * numpyro.sample(
+                "psi_1",
+                dist.Beta(3, 3),
+            )
 
-            Q_modifiers = (1 - psi_1) * I + psi_1 * (D - W)
-            L_Q_modifiers = pt.linalg.cholesky(Q_modifiers)
-            L_cov_modifiers = pt.linalg.solve(L_Q_modifiers, I)
-            Q_shocks = (1 - psi_2) * I + psi_2 * (D - W)
-            L_Q_shocks = pt.linalg.cholesky(Q_shocks)
-            L_cov_shocks = pt.linalg.solve(L_Q_shocks, I)
-                
-            # Hyperparameter for delta_beta_temporal
-            delta_beta_raw = pm.Normal("delta_beta_raw", 0, 1, dims=("modifier","state"))
-            delta_beta_state_mean = pm.Deterministic("delta_beta_state_mean", (1/4) * pt.einsum("ij,mj->mi", L_cov_modifiers, delta_beta_raw), dims=("modifier","state"))
+            psi_2 = numpyro.sample(
+                "psi_2",
+                dist.Beta(3, 3),
+            )
 
-            # --- AR(1) kernel ---
+            I = jnp.eye(n_states)
+            W = jnp.asarray(adj)
+            D = jnp.diag(jnp.sum(W, axis=1))
 
-            # Total AR persistence
-            phi = pm.Deterministic("phi", pt.as_tensor_variable(phi))
+            Q_modifiers = (
+                (1 - psi_1) * I
+                + psi_1 * (D - W)
+            )
 
-            # sample iid standard normals as shocks
-            eta_raw = pm.Normal("eta_raw", mu=0.0, sigma=1.0, shape=(n_modifiers-1, n_seasons, n_states))
+            L_Q_modifiers = jnp.linalg.cholesky(
+                Q_modifiers
+            )
 
-            # --- GARCH(1,0) = ARCH(1) parameters ---    
-            ## baseline noise
-            ### global
-            omega_global_mean_shrinkage = pm.HalfNormal("omega_global_mean_shrinkage", sigma=0.05/3)
-            log_omega_global_mean = pm.Normal("log_omega_global_mean", mu=pt.log(omega_global_mean_shrinkage), sigma=1/5)    
-            omega_global_mean = pm.Deterministic("omega_global_mean", pt.exp(log_omega_global_mean))
-            ### state
-            omega_state_sd = pm.HalfNormal("omega_state_sd", sigma=1/5)      
-            omega_state_raw = pm.Normal("omega_state_raw", 0, 1, dims="state")
-            omega_state = pm.Deterministic("omega_state", pt.exp(omega_state_sd * omega_state_raw), dims="state")
-            ### season
-            omega_season_sd = pm.HalfNormal("omega_season_sd", sigma=1/5)
-            omega_season_raw = pm.Normal("omega_season_raw", 0, 1, dims="season")
-            omega_season = pm.Deterministic("omega_season", pt.exp(omega_season_sd * omega_season_raw), dims="season")
-            log_omega = log_omega_global_mean + omega_state_sd * omega_state_raw[None, :] + omega_season_sd * omega_season_raw[:, None]
-            omega = pm.Deterministic("omega", pt.exp(log_omega), dims=("season", "state")) 
-            ## alpha and beta
-            if a_garch is not None:
-                a_garch = pm.Deterministic("a_garch", pt.as_tensor_variable(a_garch))
-            else:
-                a_garch = pm.Beta("a_garch",alpha=1, beta=5)    # --> baseline assumption: no volatility clustering
-            b_garch = pm.Deterministic("b_garch", pt.as_tensor_variable(b_garch))
+            L_cov_modifiers = jnp.linalg.solve(
+                L_Q_modifiers,
+                I,
+            )
 
-            # run forward simulation model
-            H_raw, z_raw, sigma2_raw, eps_raw = forward_op(eta_raw, phi, omega, a_garch, b_garch, delta_beta_state_mean, L_cov_shocks, beta, rho, fI, fR, gamma, population, ts)
+            Q_shocks = (
+                (1 - psi_2) * I
+                + psi_2 * (D - W)
+            )
 
-            # put output in posterior
-            H = pm.Deterministic("H", 7 * pt.math.softplus(H_raw), dims=("season", "state", "observation"))
-            z = pm.Deterministic("z", z_raw, dims=("modifier", "season", "state"))
-            pm.Deterministic("delta_beta", z + delta_beta_state_mean[:, None, :])
-            pm.Deterministic("sigma2", sigma2_raw, dims=("modifier", "season", "state"),)
-            pm.Deterministic("eps", eps_raw, dims=("modifier", "season", "state"))
+            L_Q_shocks = jnp.linalg.cholesky(
+                Q_shocks
+            )
 
-            # Compute likelihood
-            alpha_inv = pm.HalfNormal("alpha_inv", sigma=0.002/3, dims="state")
-            pm.CustomDist("data", H, 1/alpha_inv, weights, logp=weighted_nb_logp, random=weighted_nb_random, observed=7*data)
+            L_cov_shocks = jnp.linalg.solve(
+                L_Q_shocks,
+                I,
+            )
+
+
+            # ============================================================
+            # delta_beta temporal/state component
+            # ============================================================
+
+            delta_beta_raw = numpyro.sample(
+                "delta_beta_raw",
+                dist.Normal(0, 1).expand(
+                    [n_modifiers, n_states]
+                ),
+            )
+
+            delta_beta_state_mean = (
+                1 / 4
+            ) * jnp.einsum(
+                "ij,mj->mi",
+                L_cov_modifiers,
+                delta_beta_raw,
+            )
+
+            numpyro.deterministic(
+                "delta_beta_state_mean",
+                delta_beta_state_mean,
+            )
+
+
+            # ============================================================
+            # AR(1)
+            # ============================================================
+
+            numpyro.deterministic(
+                "phi",
+                phi,
+            )
+
+
+            # ============================================================
+            # GARCH / ARCH
+            # ============================================================
+
+            eta_raw = numpyro.sample(
+                "eta_raw",
+                dist.Normal(0, 1).expand(
+                    [n_modifiers - 1, n_seasons, n_states]
+                ),
+            )
+
+
+            # omega
+            omega_global_mean_shrinkage = numpyro.sample(
+                "omega_global_mean_shrinkage",
+                dist.HalfNormal(0.05 / 3),
+            )
+
+            log_omega_global_mean = numpyro.sample(
+                "log_omega_global_mean",
+                dist.Normal(
+                    jnp.log(omega_global_mean_shrinkage),
+                    1 / 5,
+                ),
+            )
+
+            omega_global_mean = jnp.exp(
+                log_omega_global_mean
+            )
+
+            numpyro.deterministic(
+                "omega_global_mean",
+                omega_global_mean,
+            )
+
+            omega_state_sd = numpyro.sample(
+                "omega_state_sd",
+                dist.HalfNormal(1 / 5),
+            )
+
+            omega_state_raw = numpyro.sample(
+                "omega_state_raw",
+                dist.Normal(0, 1).expand([n_states]),
+            )
+
+            numpyro.deterministic(
+                "omega_state",
+                jnp.exp(
+                    omega_state_sd * omega_state_raw
+                ),
+            )
+
+            omega_season_sd = numpyro.sample(
+                "omega_season_sd",
+                dist.HalfNormal(1 / 5),
+            )
+
+            omega_season_raw = numpyro.sample(
+                "omega_season_raw",
+                dist.Normal(0, 1).expand([n_seasons]),
+            )
+
+            numpyro.deterministic(
+                "omega_season",
+                jnp.exp(
+                    omega_season_sd * omega_season_raw
+                ),
+            )
+
+            log_omega = (
+                log_omega_global_mean
+                + omega_state_sd * omega_state_raw[None, :]
+                + omega_season_sd * omega_season_raw[:, None]
+            )
+
+            omega = jnp.exp(log_omega)
+
+            numpyro.deterministic(
+                "omega",
+                omega,
+            )
+
+
+            # a_garch
+            numpyro.deterministic(
+                "a_garch",
+                0.0,
+            )
+
+
+            # b_garch
+            numpyro.deterministic(
+                "b_garch",
+                0.0,
+            )
+
+
+            # ============================================================
+            # Forward simulation
+            # ============================================================
+
+            H_raw, z_raw, sigma2_raw, eps_raw = forward_jax(
+                eta_raw,
+                phi,
+                omega,
+                a_garch,
+                b_garch,
+                delta_beta_state_mean,
+                L_cov_shocks,
+                beta,
+                rho,
+                fI,
+                fR,
+                gamma,
+                population,
+                ts,
+                args_static,
+            )
+
+            H = numpyro.deterministic(
+                "H",
+                jax.nn.softplus(7*H_raw),
+            )
+
+            numpyro.deterministic(
+                "z",
+                z_raw,
+            )
+
+            delta_beta = (
+                z_raw
+                + delta_beta_state_mean[:, None, :]
+            )
+
+            numpyro.deterministic(
+                "delta_beta",
+                delta_beta,
+            )
+
+            numpyro.deterministic(
+                "sigma2",
+                sigma2_raw,
+            )
+
+            numpyro.deterministic(
+                "eps",
+                eps_raw,
+            )
+
+
+            # ============================================================
+            # NB dispersion
+            # ============================================================
+
+            alpha_inv = numpyro.sample(
+                "alpha_inv",
+                dist.HalfNormal(0.002 / 3).expand(
+                    [n_states]
+                ),
+            )
+
+            alpha = numpyro.deterministic(
+                "alpha",
+                1.0 / alpha_inv,
+            )
+
+
+            # ============================================================
+            # Tempered NB likelihood
+            # ============================================================
+
+            numpyro.factor(
+                "data",
+                weighted_nb_logp(
+                    7 * data,
+                    H,
+                    1/alpha,
+                    weights,
+                ),
+            )
+
 
         # Sample pyMC model
         # ~~~~~~~~~~~~~~~~~
 
         print('\nstarting the sampler..\n')
 
-        with model:
-            # get last sample from previous run to start from
-            if cont_sampling:
-                trace_path = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}/cluster_{cluster_idx}/trace.nc')
-                prev_trace = arviz.from_netcdf(trace_path)
-                initvals = trace_to_initvals(prev_trace, [rv.name for rv in model.free_RVs])
-                assert len(prev_trace.posterior.coords['draw'].values) > n_burn, 'number of burned samples cannot exceed total number of samples'
-            #else:
-            #    assert n_sample > n_burn, 'number of burned samples cannot exceed total number of samples'
-            # set step size directly
-            from pymc.sampling.jax import sample_numpyro_nuts
-            trace = sample_numpyro_nuts(n_sample, tune=n_burn, chains=n_chains, progressbar=True, initvals=initvals,
-                                        jitter=False, chain_method='parallel',
-                                        nuts_kwargs={'step_size': 0.0001, 'adapt_step_size': False, 'max_tree_depth': 12})
-  
+        from numpyro.infer import init_to_value
+
+        rng_key = jax.random.PRNGKey(42)
+        rng_key, rng_predict = jax.random.split(rng_key)
+
+        kernel = NUTS(
+            numpyro_model,
+            step_size=0.0001,
+            adapt_step_size=False,
+            max_tree_depth=12,
+            init_strategy = init_to_value(values=initvals[0]),
+        )
+
+        mcmc = MCMC(
+            kernel,
+            num_warmup=n_burn,
+            num_samples=n_sample,
+            num_chains=n_chains,
+            chain_method="parallel",
+            progress_bar=True,
+        )
+
+        mcmc.run(
+            rng_key,
+            data=jnp.asarray(7 * data),
+            weights=jnp.asarray(weights),
+            adj=jnp.asarray(adj),
+            population=jnp.asarray(population),
+            ts=jnp.asarray(ts),
+            gamma=jnp.asarray(gamma),
+            beta=jnp.full((n_seasons, n_states), 0.455),
+            phi=phi,
+            init=init,
+            args_static=args_static,
+            n_states=n_states,
+            n_seasons=n_seasons,
+            n_modifiers=n_modifiers,
+        )
 
         print('\n..finished sampling\n')
         print('\nsaving traces\n')
 
-        if not cont_sampling:
-            trace.to_netcdf(os.path.join(cluster_output_folder, f"trace.nc"))
-        else:
-            combined_trace = concat_traces(prev_trace, trace)
-            tmp_path = trace_path + ".tmp"
-            combined_trace.to_netcdf(tmp_path)
-            os.replace(tmp_path, trace_path)
-            trace = combined_trace
+        trace = arviz.from_numpyro(mcmc, coords=coords, dims=dims)
+
+        trace.to_netcdf(os.path.join(cluster_output_folder, f"trace.nc"))
 
         print('\ngenerating diagnostic plots\n')
 
         # manual burn
-        # trace = trace.isel(draw=slice(n_burn, None))
+        trace = trace.isel(draw=slice(n_burn, None))
 
         # Generate traces
         variables2plot = [
@@ -419,7 +899,6 @@ def run_training():
                         'rho_global_mean', 'rho_state_sd', 'rho_state', 'rho_season_sd', 'rho_season', 'rho',   # rho
                         'fI_global_mean', 'fI_state_sd', 'fI_state', 'fI_season_sd', 'fI_season', 'fI',         # fI
                         'fR_global_mean', 'fR_state_sd', 'fR_state', 'fR_season_sd', 'fR_season', 'fR',         # fR
-                        'delta_beta_state_mean',                                                                # delta_beta_mu
                         'psi_2', 'psi_1',                                                                       # spatial correlation strength
                         'phi',                                                                                  # AR 
                         'omega_global_mean', 'omega_state_sd', 'omega_state', 'omega_season_sd', 'omega_season', 'omega', # GARCH(1,0) parameters
@@ -434,12 +913,37 @@ def run_training():
             plt.savefig(os.path.join(cluster_output_folder,f'traces/trace-{var}.pdf'))
             plt.close()
 
+        import sys
+        sys.exit()
+
         # Make posterior predictive
         # ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        # Predict
-        with model:
-            posterior_predictive = pm.sample_posterior_predictive(trace)
+        from numpyro.infer import Predictive
+
+        predictive = Predictive(
+            numpyro_model,
+            posterior_samples=mcmc.get_samples(),
+            )
+
+        posterior_predictive = predictive(
+            rng_key,
+            data=jnp.asarray(7 * data),
+            weights=jnp.asarray(weights),
+            adj=jnp.asarray(adj),
+            population=jnp.asarray(population),
+            ts=jnp.asarray(ts),
+            gamma=jnp.asarray(gamma),
+            beta=jnp.full((n_seasons, n_states), 0.455),
+            phi=phi,
+            init=init,
+            args_static=args_static,
+            n_states=n_states,
+            n_seasons=n_seasons,
+            n_modifiers=n_modifiers,
+        )
+
+        posterior_predictive = arviz.from_numpyro(mcmc, posterior_predictive=posterior_predictive, coords=coords, dims=dims)
 
         # Save posterior predictive
         posterior_predictive.to_netcdf(os.path.join(cluster_output_folder,"posterior_predictive.nc"))
