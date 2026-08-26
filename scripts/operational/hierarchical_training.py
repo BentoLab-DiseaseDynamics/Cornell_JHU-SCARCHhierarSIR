@@ -393,7 +393,7 @@ def run_training():
             from pymc.sampling.jax import sample_numpyro_nuts
             trace = sample_numpyro_nuts(n_sample, tune=n_burn, chains=n_chains, progressbar=True, initvals=initvals,
                                         jitter=False, chain_method='parallel',
-                                        nuts_kwargs={'step_size': 0.0001, 'adapt_step_size': False, 'max_tree_depth': 12})
+                                        nuts_kwargs={'step_size': 0.0002, 'adapt_step_size': False, 'max_tree_depth': 12})
   
 
         print('\n..finished sampling\n')
