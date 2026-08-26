@@ -26,11 +26,7 @@ def SIR_vector_field(t, y, args):
     N = S + I + R
 
     # interpolate modifier at current ODE time
-    delta_beta = 1.0 + jnp.interp(
-        t,
-        xp=daily_ts,
-        fp=delta_beta_daily,
-    )
+    delta_beta = 1.0 + jnp.interp(t, xp=daily_ts, fp=delta_beta_daily)
 
     # force of infection
     FOI = delta_beta * beta * I / N
@@ -491,10 +487,6 @@ import pytensor.tensor as pt
 from pytensor.graph import Apply, Op
 from pytensor.link.jax.dispatch import jax_funcify
 
-
-
-
-
 class ForwardOp(Op):
 
     def __init__(self, args_static, forward_jitted, forward_vjp_jitted):
@@ -650,11 +642,6 @@ class ForwardOp(Op):
         return list(grads)
 
 
-
-
-
-
-
 class ForwardVJPOp(Op):
 
     def __init__(self, args_static, forward_vjp_jitted):
@@ -763,10 +750,6 @@ class ForwardVJPOp(Op):
         )
         for i,(output, grad) in enumerate(zip(outputs, grads)):
             output[0] = np.asarray(grad)
-
-
-
-
 
 
 #############################
