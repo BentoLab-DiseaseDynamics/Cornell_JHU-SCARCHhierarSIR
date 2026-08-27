@@ -82,43 +82,34 @@ class WeightedNB(dist.Distribution):
         # Batch shape must match the shape of the data
         super().__init__(batch_shape=mu.shape, validate_args=validate_args,)
 
+
     def log_prob(self, value):
-        """
-        Compute the weighted log-probability of observed values.
 
-        The state dimension is moved to the final axis so that the
-        state-specific ``alpha`` parameter can broadcast correctly.
-        Pointwise negative-binomial log-probabilities are then multiplied
-        by the corresponding observation weights before the original axis
-        ordering is restored.
-
-        Parameters
-        ----------
-        value : jax.numpy.ndarray
-            Observed count data. Expected shape is
-            ``(n_seasons, n_states, n_observations)``.
-
-        Returns
-        -------
-        jax.numpy.ndarray
-            Weighted pointwise log-probabilities with shape
-            ``(n_seasons, n_states, n_observations)``.
-        """
-
-        # Align axes to broadcast against alpha (shape: n_states,).
-        # Move n_states (axis 1) to the trailing position (-1).
+        # Align axes
         v_aligned = jnp.moveaxis(value, 1, -1)
         mu_aligned = jnp.moveaxis(self.mu, 1, -1)
         w_aligned = jnp.moveaxis(self.weights, 1, -1)
 
-        # Compute pointwise negative-binomial log-probabilities.
-        pointwise_logp = dist.NegativeBinomial2(mean=mu_aligned, concentration=self.alpha).log_prob(v_aligned)
+        # Record which observations have an unsafe mean
+        unsafe_mu = mu_aligned <= 0
 
-        # Apply observation-specific weights.
+        # Evaluate the NB log-probability normally using the original mu
+        pointwise_logp = dist.NegativeBinomial2(
+            mean=mu_aligned,
+            concentration=self.alpha,
+        ).log_prob(v_aligned)
+
+        # Apply weights
         weighted_logp_aligned = w_aligned * pointwise_logp
 
-        # Restore the original shape:
-        # (n_seasons, n_states, n_observations).
+        # Redact ONLY observations for which the original mu was unsafe
+        weighted_logp_aligned = jnp.where(
+            unsafe_mu,
+            0.0,
+            weighted_logp_aligned,
+        )
+
+        # Restore original axis ordering
         return jnp.moveaxis(weighted_logp_aligned, -1, 1)
 
     def sample(self, key, sample_shape=()):

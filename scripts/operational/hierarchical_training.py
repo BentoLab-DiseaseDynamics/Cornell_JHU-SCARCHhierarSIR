@@ -8,7 +8,7 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
-n_chains = 12
+n_chains = 8
 
 # standard python libraries
 import os
@@ -23,6 +23,7 @@ from scipy.stats import linregress
 from datetime import datetime, timedelta
 # jax and numpyro
 import jax
+jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 import numpyro
 numpyro.set_host_device_count(n_chains)
@@ -34,6 +35,7 @@ from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_
 from SCARCHhierarSIR.preoptimization import preoptimize_parameters, compute_initial_effects
 from SCARCHhierarSIR.jax_forward_sim_model import forward_sim_preopt_jax
 from SCARCHhierarSIR.numpyro_utils import compute_season_weights
+
 
 # all paths defined relative to this file
 abs_dir = os.path.dirname(__file__)
@@ -55,8 +57,8 @@ clustering_name = 'all'
 n_observations = 35             # run until start of May
 seasons = ['2023-2024', '2024-2025', '2025-2026']
 ## sampling effort
-n_sample = 25
-n_burn = 25
+n_sample = 50
+n_burn = 50
 training_name = f'test'
 n_preoptim = 500
 ## use previous sampling
