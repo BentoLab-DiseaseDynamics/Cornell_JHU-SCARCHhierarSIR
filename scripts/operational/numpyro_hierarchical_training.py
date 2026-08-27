@@ -122,10 +122,10 @@ def run_training():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 4
-    n_sample = 3
-    n_burn = 3
+    n_sample = 50
+    n_burn = 50
     training_name = f'test'
-    n_preoptim = 200
+    n_preoptim = 500
     ## use previous sampling
     cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
 
@@ -278,7 +278,7 @@ def run_training():
                 'log_rho_global_mean': init["log_rho"]["global"], 'rho_state_sd': 0.2, 'rho_state_raw': init["log_rho"]["state"] / 0.2, 'rho_season_sd': 0.2, 'rho_season_raw': init["log_rho"]["season"] / 0.2,
                 'log_fI_global_mean': init["log_fI"]["global"], 'fI_state_sd': 0.2, 'fI_state_raw': init["log_fI"]["state"] / 0.2, 'fI_season_sd': 0.2, 'fI_season_raw': init["log_fI"]["season"] / 0.2,
                 'logit_fR_global_mean': init["logit_fR"]["global"], 'fR_state_sd': 0.2, 'fR_state_raw': init["logit_fR"]["state"] / 0.2, 'fR_season_sd': 0.2, 'fR_season_raw': init["logit_fR"]["season"] / 0.2,
-                'phi': 0.50, 'log_omega_global_mean': jnp.log(0.05/3), 'omega_global_mean_shrinkage': 0.05/3}]
+                'log_omega_global_mean': jnp.log(0.05/3), 'omega_global_mean_shrinkage': 0.05/3, 'psi_1': 0.5, 'psi_2': 0.5}]
 
         print('\nparameter hierarchy reconstruction\n')
 
@@ -854,7 +854,7 @@ def run_training():
             numpyro_model,
             step_size=0.0002,
             adapt_step_size=False,
-            max_tree_depth=10,
+            max_tree_depth=12,
             init_strategy = init_to_value(values=initvals[0]),
         )
 
@@ -862,8 +862,8 @@ def run_training():
             kernel,
             num_warmup=n_burn,
             num_samples=n_sample,
-            num_chains=1,
-            chain_method="sequential",
+            num_chains=n_chains,
+            chain_method="parallel",
             progress_bar=True,
         )
 
@@ -1221,7 +1221,7 @@ def run_training():
 
         # save the hyperdistributions
         med = trace.posterior.median(dim=("chain", "draw")) # take median across chains and draws
-        df = pd.DataFrame(index=model.coords["state"])
+        df = pd.DataFrame(index=state_fips_index['abbreviation_state'].values)
 
         # scalar parameters (repeat per state)
         scalar_params = [
