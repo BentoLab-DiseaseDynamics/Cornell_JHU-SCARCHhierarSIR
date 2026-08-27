@@ -297,7 +297,7 @@ def ar_garch_scan(eta, phi, omega, a_garch, b_garch):
 ## Combine all parts into one jax-function and jit it ##
 ########################################################
 
-def forward_sim_jax(eta_raw, phi, omega, a_garch, b_garch, delta_beta_state_mean, L_cov_shocks, beta, rho, fI, fR, gamma, population, ts, args_static):
+def forward_sim_jax(eta_raw, phi, omega, a_garch, b_garch, delta_beta_state_mean, L_cov_shocks, rho, fI, fR, args_static):
     """
     Complete JAX forward simulation model.
 
@@ -316,7 +316,7 @@ def forward_sim_jax(eta_raw, phi, omega, a_garch, b_garch, delta_beta_state_mean
         Shape (modifier, season, state)
     """
 
-    t0, t1_max, modifier_length = args_static
+    t0, t1_max, modifier_length, beta, gamma, population, ts = args_static
 
     # 1. Spatially correlate shocks
     eta = jnp.einsum("ij,tsj->tsi", L_cov_shocks, eta_raw)
@@ -350,3 +350,65 @@ def forward_sim_jax(eta_raw, phi, omega, a_garch, b_garch, delta_beta_state_mean
     H = ys[..., 3] # shape: (season, state, observation)
 
     return H, z, sigma2, eps
+
+
+##########################################################################
+## Build a deterministic version for pre-optimization of the parameters ##
+##########################################################################
+
+def forward_sim_preopt_jax(rho, fI, fR, delta_beta, args_static):
+    """
+    Deterministic JAX forward simulation for parameter preoptimization.
+
+    Parameters
+    ----------
+    rho : array
+        Shape (n_seasons, n_states)
+
+    fI : array
+        Shape (n_seasons, n_states)
+
+    fR : array
+        Shape (n_seasons, n_states)
+
+    delta_beta : array
+        Shape (n_seasons, n_states, n_modifiers)
+
+    args_static : tuple
+        (t0, t1_max, modifier_length, beta, gamma, population, ts)
+
+    Returns
+    -------
+    H : array
+        Shape (n_seasons, n_states, n_observations)
+    """
+
+    # Unpack static arguments
+    t0, t1_max, modifier_length, beta, gamma, population, ts = args_static
+
+    # Convert block-level modifiers to daily modifiers
+    delta_beta_daily = make_delta_beta_daily_batched(
+        delta_beta=delta_beta,
+        duration=modifier_length,
+        t0=t0,
+        t1=t1_max,
+    )
+
+    # Run batched ODE
+    ys = simulate_all_jax(
+        beta=beta,
+        rho=rho,
+        fI=fI,
+        fR=fR,
+        delta_beta_daily=delta_beta_daily,
+        gamma=gamma,
+        population=population,
+        t0=t0,
+        t1=t1_max,
+        ts=ts,
+    )
+
+    # Extract observation state
+    H = ys[..., 3]
+
+    return H

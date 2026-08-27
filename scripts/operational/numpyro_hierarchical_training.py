@@ -33,7 +33,7 @@ import arviz
 from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, impute_outliers
 from SCARCHhierarSIR.SIR_model import get_jax_jitted_model, make_sol_op
 from SCARCHhierarSIR.preoptimization import preoptimize_parameters, compute_initial_effects
-from SCARCHhierarSIR.jax_forward_sim_model import forward_sim_jax
+from SCARCHhierarSIR.jax_forward_sim_model import forward_sim_jax, forward_sim_preopt_jax
 from SCARCHhierarSIR.numpyro_probablistic_models import compute_season_weights, WeightedNB
 
 # all paths defined relative to this file
@@ -44,6 +44,7 @@ abs_dir = os.path.dirname(__file__)
 a_garch = 0.0
 b_garch = 0.0
 phi = 0.5
+beta = 0.455
 gamma = 1/3.5
 n_modifiers = 32
 modifier_length = 7
@@ -58,7 +59,7 @@ seasons = ['2023-2024', '2024-2025', '2025-2026']
 n_sample = 3
 n_burn = 3
 training_name = f'test'
-n_preoptim = 500
+n_preoptim = 200
 ## use previous sampling
 cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
 
@@ -118,48 +119,40 @@ for cluster_idx in cluster_indices:
 
     data = impute_outliers(data)
 
-    # Define a jax-jitted diffrax differential equation model
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    jitted_sol_op_multi, jitted_vjp_sol_op_multi = get_jax_jitted_model()
-
-    # Define the Op and VJPOp classes for the ODE problem
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    args_static = (start_simulation, max(ts[:,-1]), modifier_length)
-
     # Pre-optimize the forward simulation model's parameters
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     print('pre-optimization\n')
     print('(iter, score)')
 
-    # stack args_nodiff so two leading axes are seasons, states and the third axes gives the arguments for the season-state combination
-    gamma_vec = jnp.full((n_seasons, n_states, 1), gamma)
-    pop_mat = jnp.broadcast_to(jnp.asarray(demo)[None, :, None], (n_seasons, n_states, 1))
-    ts_mat = jnp.broadcast_to(ts[:, None, :], (n_seasons, n_states, ts.shape[1]))
-    args_nodiff = np.array(jnp.concatenate([gamma_vec, pop_mat, ts_mat], axis=2))     # shape: (n_seasons, n_states, )  --> convert to numpy otherwise error in pt.as_tensor_variable(args_nodiff) in make_node of pyMC model
+    population = jnp.asarray(demo, dtype=np.float64)
 
-    # pre-optimize the initial guesses
+    args_static = (start_simulation, max(ts[:,-1]), modifier_length, jnp.full((n_seasons, n_states), beta), gamma, jnp.asarray(demo, dtype=np.float64), ts)
+
+    # initial guess
+    init_params = {
+        "rho": jnp.full((n_seasons, n_states), 0.0025),
+        "fI": jnp.full((n_seasons, n_states), 1e-4),
+        "fR": jnp.full((n_seasons, n_states), 0.25),
+        "delta_beta": jnp.zeros((n_modifiers, n_seasons, n_states)),
+    }
+
+    # pre-optimise it
     args_diff_preoptim = preoptimize_parameters(
-        jitted_sol_op=jitted_sol_op_multi,
         args_static=args_static,
-        args_nodiff=args_nodiff,
         data=data,
-        init_params=dict(
-            beta=0.455,
-            rho=0.0025,
-            fI=1e-4,
-            fR=0.25,
-            delta_beta=jnp.zeros(n_modifiers),
-        ),
-        n_seasons=n_seasons,
-        n_states=n_states,
+        init_params=init_params,
         n_iter=n_preoptim,
     )
 
     # run simulation
-    out = jitted_sol_op_multi(args_diff_preoptim, args_nodiff, args_static)
+    out = forward_sim_preopt_jax(
+            rho=args_diff_preoptim["rho"],
+            fI=args_diff_preoptim["fI"],
+            fR=args_diff_preoptim["fR"],
+            delta_beta=args_diff_preoptim["delta_beta"],
+            args_static=args_static,
+        )
 
     # visualise the result
     for s in range(n_states):
@@ -204,7 +197,6 @@ for cluster_idx in cluster_indices:
     print('\ncompiling pymc model')
 
     weights = compute_season_weights(jnp.asarray(data))
-    population = jnp.asarray(demo, dtype=np.float64)
 
     # load RV dimensions
     from SCARCHhierarSIR.numpyro_probablistic_models import RV_dims
@@ -218,7 +210,7 @@ for cluster_idx in cluster_indices:
         "modifier_eta": np.arange(n_modifiers-1)
     }
 
-    def numpyro_model(data, weights, adj, population, ts, gamma, beta, phi, a_garch, b_garch, init, args_static, n_states, n_seasons, n_modifiers):
+    def numpyro_model(data, weights, adj, phi, a_garch, b_garch, init, args_static, n_states, n_seasons, n_modifiers):
         
         # ============================================================
         # Ascertainment: rho
@@ -385,13 +377,9 @@ for cluster_idx in cluster_indices:
             b_garch,
             delta_beta_state_mean,
             L_cov_shocks,
-            beta,
             rho,
             fI,
             fR,
-            gamma,
-            population,
-            ts,
             args_static,
         )
 
@@ -442,10 +430,6 @@ for cluster_idx in cluster_indices:
         data=jnp.asarray(7 * data),
         weights=jnp.asarray(weights),
         adj=jnp.asarray(adj),
-        population=jnp.asarray(population),
-        ts=jnp.asarray(ts),
-        gamma=jnp.asarray(gamma),
-        beta=jnp.full((n_seasons, n_states), 0.455),
         phi=phi,
         a_garch=a_garch,
         b_garch=b_garch,
@@ -508,10 +492,6 @@ for cluster_idx in cluster_indices:
         data=None,
         weights=jnp.asarray(weights),
         adj=jnp.asarray(adj),
-        population=jnp.asarray(population),
-        ts=jnp.asarray(ts),
-        gamma=jnp.asarray(gamma),
-        beta=jnp.full((n_seasons, n_states), 0.455),
         phi=phi,
         a_garch=a_garch,
         b_garch=b_garch,

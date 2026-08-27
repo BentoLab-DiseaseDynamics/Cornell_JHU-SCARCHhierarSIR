@@ -21,101 +21,150 @@ import jax
 import optax
 import jax.numpy as jnp
 
+from SCARCHhierarSIR.jax_forward_sim_model import forward_sim_preopt_jax
+
 #####################
 ## Preoptimisation ##
 #####################
 
+
 def preoptimize_parameters(
     *,
-    jitted_sol_op,
     args_static,
-    args_nodiff,
     data,
-    init_params,          # dict with initial guess for beta, rho, fI, fR, delta_beta
-    n_seasons,
-    n_states,
+    init_params,
     n_iter=1000,
     lr=1e-2,
 ):
     """
-    Returns optimized *constrained* parameters (same shape as model expects).
+    Deterministically pre-optimize rho, fI, fR and delta_beta.
+
+    beta and gamma are fixed through args_static.
+
+    Parameters
+    ----------
+    args_static : tuple
+        (t0, t1_max, modifier_length, beta, gamma, population, ts)
+
+    data : array
+        Observed data with shape
+        (n_seasons, n_states, n_observations)
+
+    init_params : dict
+        Initial constrained parameter values:
+            rho
+            fI
+            fR
+            delta_beta
+
+        Shapes:
+            rho         : (n_seasons, n_states)
+            fI          : (n_seasons, n_states)
+            fR          : (n_seasons, n_states)
+            delta_beta  : (n_seasons, n_states, n_modifiers)
+
+    Returns
+    -------
+    optimized_params : dict
+        Optimized constrained parameters with the same shapes as init_params.
     """
 
-    # unconstrain parameters
-    single = unconstrain(init_params)
-    args_diff = jnp.broadcast_to(
-        single,
-        (n_seasons, n_states, single.shape[0])
-    )
+    # --------------------------------------------------
+    # Transform initial constrained parameters
+    # to unconstrained space
+    # --------------------------------------------------
 
-    # define loss function
-    def loss_fn(args_diff):
-        constrained = constrain(args_diff)
-        pred = jitted_sol_op(constrained, args_nodiff, args_static)
+    def inv_softplus(x):
+        return x + jnp.log(-jnp.expm1(-x))
+
+    params_raw = {
+        "rho": inv_softplus(init_params["rho"]),
+        "fI": inv_softplus(init_params["fI"]),
+        "fR": jax.scipy.special.logit(init_params["fR"]),
+        "delta_beta": jnp.arctanh(
+            init_params["delta_beta"] / 0.25
+        ),
+    }
+
+    # --------------------------------------------------
+    # Transform unconstrained -> constrained
+    # --------------------------------------------------
+
+    def constrain(params_raw):
+
+        return {
+            "rho": jax.nn.softplus(params_raw["rho"]),
+            "fI": jax.nn.softplus(params_raw["fI"]),
+            "fR": jax.nn.sigmoid(params_raw["fR"]),
+            "delta_beta": (0.25 * jnp.tanh(params_raw["delta_beta"])),
+        }
+
+    # --------------------------------------------------
+    # Loss function
+    # --------------------------------------------------
+
+    def loss_fn(params_raw):
+
+        params = constrain(params_raw)
+
+        pred = forward_sim_preopt_jax(
+            rho=params["rho"],
+            fI=params["fI"],
+            fR=params["fR"],
+            delta_beta=params["delta_beta"],
+            args_static=args_static,
+        )
+
         return jnp.sum((data - pred) ** 2)
 
-    # initialise optimizer
+    # --------------------------------------------------
+    # Initialize optimizer
+    # --------------------------------------------------
+
     optimizer = optax.adam(lr)
-    opt_state = optimizer.init(args_diff)
+    opt_state = optimizer.init(params_raw)
 
-    # jax jit the loss function
+    # --------------------------------------------------
+    # JIT optimization step
+    # --------------------------------------------------
+
     @jax.jit
-    def step(args_diff, opt_state):
-        loss, grads = jax.value_and_grad(loss_fn)(args_diff)
-        updates, opt_state = optimizer.update(grads, opt_state)
-        args_diff = optax.apply_updates(args_diff, updates)
-        return args_diff, opt_state, loss
+    def step(params_raw, opt_state):
 
-    # optimization loop
+        loss, grads = jax.value_and_grad(loss_fn)(params_raw)
+
+        updates, opt_state = optimizer.update(
+            grads,
+            opt_state,
+            params_raw,
+        )
+
+        params_raw = optax.apply_updates(
+            params_raw,
+            updates,
+        )
+
+        return params_raw, opt_state, loss
+
+    # --------------------------------------------------
+    # Optimization loop
+    # --------------------------------------------------
+
     for i in range(n_iter):
-        args_diff, opt_state, loss = step(args_diff, opt_state)
+
+        params_raw, opt_state, loss = step(
+            params_raw,
+            opt_state,
+        )
 
         if i % 100 == 0:
             print(i, float(loss))
 
-    # Return constrained params
-    return constrain(args_diff)
+    # --------------------------------------------------
+    # Return constrained parameters
+    # --------------------------------------------------
 
-
-
-############################
-## Transformation helpers ##
-############################
-
-def constrain(x):
-    """Map unconstrained -> constrained"""
-
-    beta = 0.45 + 0.01 * jax.nn.sigmoid(x[..., 0:1])   # beta (0.45-0.46)
-    rho_fI = jax.nn.softplus(x[..., 1:3])              # rho, fI (positive)
-    fR = jax.nn.sigmoid(x[..., 3:4])                   # fR (0-1)
-    delta_beta = 0.25 * jnp.tanh(x[..., 4:])           # delta_beta (-0.25 to 0.25)
-
-    return jnp.concatenate([beta, rho_fI, fR, delta_beta], axis=-1)
-
-
-def unconstrain(params):
-    """Map constrained -> unconstrained"""
-
-    beta = params["beta"]
-    rho = params["rho"]
-    fI = params["fI"]
-    fR = params["fR"]
-    delta_beta = params["delta_beta"]
-
-    # inverse scaled sigmoid
-    beta_scaled = jnp.clip((beta - 0.45) / 0.01, 1e-6, 1 - 1e-6)
-    beta_unconstrained = jnp.log(beta_scaled / (1 - beta_scaled))
-
-    return jnp.concatenate([
-        jnp.array([
-            beta_unconstrained,
-            jnp.log(jnp.exp(rho) - 1),
-            jnp.log(jnp.exp(fI) - 1),
-            jnp.log(fR / (1 - fR)),
-        ]),
-        jnp.arctanh(delta_beta / 0.25)
-    ])
-
+    return constrain(params_raw)
 
 
 ##################################################
@@ -177,29 +226,25 @@ def decompose_effects(array_2d, transform=None):
         "error_max": error.max(),
     }
 
+
 def compute_initial_effects(args_diff_preoptim):
     """
-    Convert optimized parameter tensor into PyMC initial effects.
+    Convert deterministically pre-optimized parameters into
+    initial values for the hierarchical NumPyro model.
     """
 
-    beta = np.array(args_diff_preoptim[:, :, 0])
-    rho = np.array(args_diff_preoptim[:, :, 1])
-    fI = np.array(args_diff_preoptim[:, :, 2])
-    fR = np.array(args_diff_preoptim[:, :, 3])
-    delta_beta = np.array(args_diff_preoptim[:, :, 4:])
+    # get values
+    rho = np.asarray(args_diff_preoptim["rho"])
+    fI = np.asarray(args_diff_preoptim["fI"])
+    fR = np.asarray(args_diff_preoptim["fR"])
+    delta_beta = np.asarray(args_diff_preoptim["delta_beta"])
 
     results = {}
 
-    # rho (log scale)
+    # decompose parameters
     results["log_rho"] = decompose_effects(rho, transform=np.log)
-
-    # fI (log scale)
-    results["log_fI"] = decompose_effects(fI, transform=np.log)
-
-    # fR (logit scale)
+    results["log_fI"] = decompose_effects(fI, transform=np.log,)
     results["logit_fR"] = decompose_effects(fR, transform=logit)
-
-    # delta_beta (no decomposition, but mean)
-    results["delta_beta_mu"] = np.transpose(np.mean(delta_beta, axis=0))
+    results["delta_beta_mu"] = np.mean(delta_beta, axis=1) # delta_beta: mean across seasons
 
     return results
