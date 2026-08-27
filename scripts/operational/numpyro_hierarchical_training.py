@@ -39,42 +39,63 @@ import jax.numpy as jnp
 import numpyro.distributions as dist
 from numpyro.infer import NUTS, MCMC, Predictive
 
-def weighted_nb_logp(value, mu, alpha, weights):
-    """
-    Tempered negative-binomial log probability.
 
-    Parameters
-    ----------
-    value : jax.Array
-        Shape (n_seasons, n_states, n_observations).
+class WeightedNB(dist.Distribution):
+    # Dictates that the elements in the array are independent observations
+    support = dist.constraints.nonnegative_integer
 
-    mu : jax.Array
-        Shape (n_seasons, n_states, n_observations).
+    def __init__(self, mu, alpha, weights, validate_args=None):
+        self.mu = mu
+        self.alpha = alpha
+        self.weights = weights
+        
+        # Batch shape must match the shape of the data: (n_seasons, n_states, n_observations)
+        super().__init__(batch_shape=mu.shape, validate_args=validate_args)
 
-    alpha : jax.Array
-        Shape (n_states,).
+    def log_prob(self, value):
+        # 1. Align axes to broadcast against alpha (shape: n_states,)
+        # Moves n_states (axis 1) to the trailing position (-1)
+        v_aligned = jnp.moveaxis(value, 1, -1)
+        mu_aligned = jnp.moveaxis(self.mu, 1, -1)
+        w_aligned = jnp.moveaxis(self.weights, 1, -1)
 
-    weights : jax.Array
-        Shape (n_seasons, n_states, 1).
+        # 2. Compute pointwise log-probabilities
+        # Resulting shape matches the aligned dimensions
+        pointwise_logp = dist.NegativeBinomial2(
+            mean=mu_aligned,
+            concentration=self.alpha,
+        ).log_prob(v_aligned)
 
-    Returns
-    -------
-    jax.Array
-        Scalar weighted log probability.
-    """
+        # 3. Apply weights pointwise
+        weighted_logp_aligned = w_aligned * pointwise_logp
 
-    value = jnp.moveaxis(value, 1, -1)
-    mu = jnp.moveaxis(mu, 1, -1)
-    weights = jnp.moveaxis(weights, 1, -1)
+        # 4. Restore the original shape: (n_seasons, n_states, n_observations)
+        # Moves the trailing axis (-1) back to its original position (1)
+        return jnp.moveaxis(weighted_logp_aligned, -1, 1)
 
-    logp = dist.NegativeBinomial2(
-        mean=mu,
-        concentration=alpha,
-    ).log_prob(value)
+    def sample(self, key, sample_shape=()):
+        # 1. Determine final output shape: sample_shape + batch_shape
+        # Example: (n_samples, n_chains, n_seasons, n_states, n_observations)
+        shape = sample_shape + self.batch_shape
 
-    return jnp.sum(weights * logp)
+        # 2. Match PyMC broadcasting logic for 'alpha'
+        # alpha is (n_states,). We need it to broadcast against mu/value
+        # In NumPyro, we don't rely on axis shuffling for sampling. 
+        # We broadcast alpha to match mu's trailing dimensions: (1, n_states, 1)
+        alpha_broadcasted = self.alpha[None, :, None]
 
+        # 3. Instantiate underlying JAX distribution
+        # NegativeBinomial2 takes mean (mu) and concentration (alpha) directly
+        nb_dist = dist.NegativeBinomial2(
+            mean=self.mu, 
+            concentration=alpha_broadcasted
+        )
 
+        # 4. Delegate sampling to the native JAX distribution
+        # This handles sample_shape expansion automatically and ignores weights,
+        # perfectly matching your PyMC logic while staying purely inside JAX.
+        return nb_dist.sample(key, sample_shape=sample_shape)
+    
 def compute_season_weights(data):
 
     data = jnp.asarray(data)
@@ -112,11 +133,11 @@ def run_training():
     n_observations = 35             # run until start of May
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
-    n_chains = 8
-    n_sample = 10
-    n_burn = 5
+    n_chains = 4
+    n_sample = 2
+    n_burn = 2
     training_name = f'test'
-    n_preoptim = 500
+    n_preoptim = 200
     ## use previous sampling
     cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
 
@@ -380,6 +401,8 @@ def run_training():
 
             "alpha_inv": ["state"],
             "alpha": ["state"],
+
+            "data": ["season", "state", "observation"]
         }
 
         def numpyro_model(data, weights, adj, population, ts, gamma, beta, phi, init, args_static, n_states, n_seasons, n_modifiers):
@@ -826,17 +849,8 @@ def run_training():
             # Tempered NB likelihood
             # ============================================================
 
-            numpyro.factor(
-                "data",
-                weighted_nb_logp(
-                    7 * data,
-                    H,
-                    1/alpha,
-                    weights,
-                ),
-            )
-
-
+            numpyro.sample("data", WeightedNB(mu=H, alpha=alpha, weights=weights), obs=data)
+            
         # Sample pyMC model
         # ~~~~~~~~~~~~~~~~~
 
@@ -844,14 +858,15 @@ def run_training():
 
         from numpyro.infer import init_to_value
 
-        rng_key = jax.random.PRNGKey(42)
+        import time
+        rng_key = jax.random.PRNGKey(int(time.time()))
         rng_key, rng_predict = jax.random.split(rng_key)
 
         kernel = NUTS(
             numpyro_model,
-            step_size=0.0001,
+            step_size=0.0002,
             adapt_step_size=False,
-            max_tree_depth=12,
+            max_tree_depth=10,
             init_strategy = init_to_value(values=initvals[0]),
         )
 
@@ -888,10 +903,9 @@ def run_training():
 
         trace.to_netcdf(os.path.join(cluster_output_folder, f"trace.nc"))
 
-        print('\ngenerating diagnostic plots\n')
+        inv_mass_matrix = mcmc.last_state.adapt_state.inverse_mass_matrix # you will save this as a .json and then use it to restart runs
 
-        # manual burn
-        trace = trace.isel(draw=slice(n_burn, None))
+        print('\ngenerating diagnostic plots\n')
 
         # Generate traces
         variables2plot = [
@@ -913,8 +927,6 @@ def run_training():
             plt.savefig(os.path.join(cluster_output_folder,f'traces/trace-{var}.pdf'))
             plt.close()
 
-        import sys
-        sys.exit()
 
         # Make posterior predictive
         # ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -927,7 +939,7 @@ def run_training():
             )
 
         posterior_predictive = predictive(
-            rng_key,
+            rng_predict,
             data=jnp.asarray(7 * data),
             weights=jnp.asarray(weights),
             adj=jnp.asarray(adj),
