@@ -8,6 +8,8 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
+
+
 ##################
 ## Dependencies ##
 ##################
@@ -23,6 +25,8 @@ from typing import Iterable, Optional, Tuple, List, Union
 
 # Define relevant global  variables
 abs_dir = os.path.dirname(__file__)
+
+
 
 ################################
 ## Data fetching and prepping ##
@@ -311,6 +315,8 @@ def get_NHSN_HRD_data(
 
     return reference_date, data_arr, dates_arr, timesteps_arr, n_observations
 
+
+
 ########################################
 ## Conversion and Hubverse formatting ##
 ########################################
@@ -387,6 +393,7 @@ def simout_to_hubverse_peak_admissions(simout: arviz.InferenceData,
     df["value"] = df["value"].round().astype(int)
 
     return df
+
 
 
 def simout_to_hubverse_peak_timing(simout: arviz.InferenceData,
@@ -475,6 +482,7 @@ def simout_to_hubverse_peak_timing(simout: arviz.InferenceData,
     return df
 
 
+
 def simout_to_hubverse_admissions(simout: arviz.InferenceData,
                         reference_date: datetime,
                         state_fips_index: dict,
@@ -548,3 +556,58 @@ def simout_to_hubverse_admissions(simout: arviz.InferenceData,
     df["value"] = df["value"].round().astype(int)
 
     return df
+
+
+
+#######################
+## Outlier detection ##
+#######################
+
+from pygam import LinearGAM, s
+
+def impute_outliers(data):
+    """
+    Detect and impute temporal outliers in seasonal state-level count data.
+
+    A separate generalized additive model (GAM) is fitted to each
+    season-state time series after applying a ``log1p`` transformation.
+    Observations falling outside the 99.94% pointwise confidence interval
+    of the fitted smooth trend are classified as outliers. These
+    observations are replaced by the corresponding fitted trend values
+    before transforming the data back to the original count scale.
+
+    Parameters
+    ----------
+    data : numpy.ndarray
+        Three-dimensional array containing count data with shape
+        ``(n_seasons, n_states, n_observations)``. The input array is
+        modified in place.
+
+    Returns
+    -------
+    numpy.ndarray
+        The input array with detected outliers replaced by the
+        corresponding GAM trend estimates. The returned array has the
+        same shape as ``data``.
+    """
+
+    for season in range(data.shape[0]):
+        for _, state in enumerate(range(data.shape[1])):
+
+            d = data[season, state, :]
+
+            y = np.log1p(np.asarray(d))
+            x = np.arange(len(d))
+
+            gam = LinearGAM(s(0, n_splines=int(np.round(len(d) / 2))), lam=0.05).fit(x[:, None], y)
+
+            trend = gam.predict(x[:, None])
+            confint = gam.confidence_intervals(x[:, None], width=0.9994)
+
+            outliers = ((y < confint[:, 0]) | (y > confint[:, 1]))
+
+            y[outliers] = trend[outliers]
+
+            data[season, state, :] = np.expm1(y)
+
+    return data
