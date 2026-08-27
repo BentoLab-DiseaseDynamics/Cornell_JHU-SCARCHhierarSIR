@@ -60,7 +60,7 @@ def run_training():
     ## sampling effort
     n_chains = 8
     n_sample = 10
-    n_burn = 5
+    n_burn = 0
     training_name = f'test'
     n_preoptim = 500
     ## use previous sampling
@@ -389,12 +389,20 @@ def run_training():
                 assert len(prev_trace.posterior.coords['draw'].values) > n_burn, 'number of burned samples cannot exceed total number of samples'
             #else:
             #    assert n_sample > n_burn, 'number of burned samples cannot exceed total number of samples'
-            # set step size directly
-            from pymc.sampling.jax import sample_numpyro_nuts
-            trace = sample_numpyro_nuts(n_sample, tune=n_burn, chains=n_chains, progressbar=True, initvals=initvals,
-                                        jitter=False, chain_method='parallel',
-                                        nuts_kwargs={'step_size': 0.0002, 'adapt_step_size': False, 'max_tree_depth': 12})
-  
+
+            # NEW SAMPLER
+            #from pymc.sampling.jax import sample_numpyro_nuts
+            #trace = sample_numpyro_nuts(n_sample, tune=n_burn, chains=n_chains, progressbar=True, initvals=initvals,
+            #                            jitter=False, chain_method='parallel',
+            #                            nuts_kwargs={'step_size': 0.0002, 'adapt_step_size': False, 'max_tree_depth': 12})
+            # OLD SAMPLER
+            # for US as a whole: step_scale: 0.00175 + max_treedepth 13, For U.S. census regions clusters: step_scale: 0.005 + max_treedepth 10
+            step = pm.NUTS(step_scale=0.00175, target_accept=0.8, max_treedepth=12)       
+            # run sampler without tuning
+            trace = pm.sample(n_sample, tune=0, chains=n_chains, progressbar=True,
+                            cores=n_chains, init='adapt_diag', step = step,
+                            mp_ctx=mp.get_context("spawn"), initvals=initvals)
+
 
         print('\n..finished sampling\n')
         print('\nsaving traces\n')
