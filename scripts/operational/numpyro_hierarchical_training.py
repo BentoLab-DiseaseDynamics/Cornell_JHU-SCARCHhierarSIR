@@ -32,7 +32,7 @@ from SCARCHhierarSIR.preoptimization import preoptimize_parameters, compute_init
 from SCARCHhierarSIR.jax_model import ForwardOp, forward_jitted, forward_vjp_jitted, forward_jax
 
 import numpyro
-numpyro.set_host_device_count(8)
+numpyro.set_host_device_count(4)
 
 import jax
 import jax.numpy as jnp
@@ -74,26 +74,22 @@ class WeightedNB(dist.Distribution):
         return jnp.moveaxis(weighted_logp_aligned, -1, 1)
 
     def sample(self, key, sample_shape=()):
-        # 1. Determine final output shape: sample_shape + batch_shape
-        # Example: (n_samples, n_chains, n_seasons, n_states, n_observations)
-        shape = sample_shape + self.batch_shape
 
-        # 2. Match PyMC broadcasting logic for 'alpha'
+        # 1. Match PyMC broadcasting logic for 'alpha'
         # alpha is (n_states,). We need it to broadcast against mu/value
         # In NumPyro, we don't rely on axis shuffling for sampling. 
         # We broadcast alpha to match mu's trailing dimensions: (1, n_states, 1)
         alpha_broadcasted = self.alpha[None, :, None]
 
-        # 3. Instantiate underlying JAX distribution
+        # 2. Instantiate underlying JAX distribution
         # NegativeBinomial2 takes mean (mu) and concentration (alpha) directly
         nb_dist = dist.NegativeBinomial2(
             mean=self.mu, 
             concentration=alpha_broadcasted
         )
 
-        # 4. Delegate sampling to the native JAX distribution
+        # 3. Delegate sampling to the native JAX distribution
         # This handles sample_shape expansion automatically and ignores weights,
-        # perfectly matching your PyMC logic while staying purely inside JAX.
         return nb_dist.sample(key, sample_shape=sample_shape)
     
 def compute_season_weights(data):
@@ -134,8 +130,8 @@ def run_training():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 4
-    n_sample = 2
-    n_burn = 2
+    n_sample = 5
+    n_burn = 5
     training_name = f'test'
     n_preoptim = 200
     ## use previous sampling
@@ -905,7 +901,7 @@ def run_training():
 
         inv_mass_matrix = mcmc.last_state.adapt_state.inverse_mass_matrix # you will save this as a .json and then use it to restart runs
 
-        print('\ngenerating diagnostic plots\n')
+        print('\nmaking traceplots\n')
 
         # Generate traces
         variables2plot = [
@@ -927,6 +923,7 @@ def run_training():
             plt.savefig(os.path.join(cluster_output_folder,f'traces/trace-{var}.pdf'))
             plt.close()
 
+        print('\nmaking posterior predictive\n')
 
         # Make posterior predictive
         # ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -959,6 +956,8 @@ def run_training():
 
         # Save posterior predictive
         posterior_predictive.to_netcdf(os.path.join(cluster_output_folder,"posterior_predictive.nc"))
+
+        print('\nmaking posterior predictive visualisations\n')
 
         # Visualisations
         # ~~~~~~~~~~~~~~
