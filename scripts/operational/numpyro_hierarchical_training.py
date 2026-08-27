@@ -74,24 +74,16 @@ class WeightedNB(dist.Distribution):
         return jnp.moveaxis(weighted_logp_aligned, -1, 1)
 
     def sample(self, key, sample_shape=()):
-
-        # 1. Match PyMC broadcasting logic for 'alpha'
-        # alpha is (n_states,). We need it to broadcast against mu/value
-        # In NumPyro, we don't rely on axis shuffling for sampling. 
-        # We broadcast alpha to match mu's trailing dimensions: (1, n_states, 1)
-        alpha_broadcasted = self.alpha[None, :, None]
-
-        # 2. Instantiate underlying JAX distribution
-        # NegativeBinomial2 takes mean (mu) and concentration (alpha) directly
         nb_dist = dist.NegativeBinomial2(
-            mean=self.mu, 
-            concentration=alpha_broadcasted
+            mean=self.mu,
+            concentration=self.alpha[None, :, None],
         )
 
-        # 3. Delegate sampling to the native JAX distribution
-        # This handles sample_shape expansion automatically and ignores weights,
-        return nb_dist.sample(key, sample_shape=sample_shape)
-    
+        return nb_dist.sample(
+            key,
+            sample_shape=sample_shape,
+        )
+
 def compute_season_weights(data):
 
     data = jnp.asarray(data)
@@ -130,8 +122,8 @@ def run_training():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_chains = 4
-    n_sample = 5
-    n_burn = 5
+    n_sample = 3
+    n_burn = 3
     training_name = f'test'
     n_preoptim = 200
     ## use previous sampling
@@ -845,7 +837,7 @@ def run_training():
             # Tempered NB likelihood
             # ============================================================
 
-            numpyro.sample("data", WeightedNB(mu=H, alpha=alpha, weights=weights), obs=data)
+            numpyro.sample("data", WeightedNB(mu=H, alpha=alpha, weights=weights), obs=data if data is not None else None)
             
         # Sample pyMC model
         # ~~~~~~~~~~~~~~~~~
@@ -870,8 +862,8 @@ def run_training():
             kernel,
             num_warmup=n_burn,
             num_samples=n_sample,
-            num_chains=n_chains,
-            chain_method="parallel",
+            num_chains=1,
+            chain_method="sequential",
             progress_bar=True,
         )
 
@@ -937,7 +929,7 @@ def run_training():
 
         posterior_predictive = predictive(
             rng_predict,
-            data=jnp.asarray(7 * data),
+            data=None,
             weights=jnp.asarray(weights),
             adj=jnp.asarray(adj),
             population=jnp.asarray(population),
