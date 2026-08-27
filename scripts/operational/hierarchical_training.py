@@ -779,4 +779,8 @@ def run_training():
     print(f'\ntraining complete!\n')
 
 # runs the script
-run_training()
+if __name__ == "__main__":
+
+    mp.set_start_method("spawn", force=True)
+
+    run_training()
