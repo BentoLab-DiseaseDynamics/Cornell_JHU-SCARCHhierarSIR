@@ -4,19 +4,16 @@ channels:
 dependencies:
   - python=3.13
   - pip
-  - pymc>=6
   - arviz>1
   - pytensor
   - jax
   - diffrax  
+  - numpyro
   - optax
-  - jupyter
-  - matplotlib
   - numpy
   - pandas
   - scipy
   - pyarrow
   - fastparquet
-  - openpyxl
   - netcdf4
   - pygam

@@ -12,60 +12,8 @@ Licensed under CC BY-NC-SA 4.0
 ## Dependencies ##
 ##################
 
-import numpy as np
 import jax.numpy as jnp
 import numpyro.distributions as dist
-
-###################
-## RV dimensions ##
-###################
-
-RV_dims = {
-    # ascertainment
-    "rho_state_raw": ["state"],
-    "rho_season_raw": ["season"],
-    "rho_state": ["state"],
-    "rho_season": ["season"],
-    "rho": ["season", "state"],
-
-    # initial infected
-    "fI_state_raw": ["state"],
-    "fI_season_raw": ["season"],
-    "fI_state": ["state"],
-    "fI_season": ["season"],
-    "fI": ["season", "state"],
-
-    # initial recovered
-    "fR_state_raw": ["state"],
-    "fR_season_raw": ["season"],
-    "fR_state": ["state"],
-    "fR_season": ["season"],
-    "fR": ["season", "state"],
-
-    # modifier parameters
-    "delta_beta_raw": ["modifier", "state"],
-    "delta_beta_state_mean": ["modifier", "state"],
-    "eta_raw": ["modifier_eta", "season", "state"],
-    "omega_state_raw": ["state"],
-    "omega_season_raw": ["season"],
-    "omega_state": ["state"],
-    "omega_season": ["season"],
-    "omega": ["season", "state"],
-
-    # modifier trajectories
-    "z": ["modifier", "season", "state"],
-    "delta_beta": ["modifier", "season", "state"],
-    "sigma2": ["modifier", "season", "state"],
-    "eps": ["modifier", "season", "state"],
-
-    # simuation output
-    "H": ["season", "state", "observation"],
-
-    # observation model
-    "alpha_inv": ["state"],
-    "alpha": ["state"],
-    "data": ["season", "state", "observation"]
-}
 
 
 ##############################

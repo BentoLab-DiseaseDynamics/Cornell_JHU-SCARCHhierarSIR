@@ -315,7 +315,8 @@ def forward_sim_jax(eta_raw, phi, omega, a_garch, b_garch, delta_beta_state_mean
     eps : jax.Array
         Shape (modifier, season, state)
     """
-
+    
+    # Unpack static arguments
     t0, t1_max, modifier_length, beta, gamma, population, ts = args_static
 
     # 1. Spatially correlate shocks
@@ -359,6 +360,8 @@ def forward_sim_jax(eta_raw, phi, omega, a_garch, b_garch, delta_beta_state_mean
 def forward_sim_preopt_jax(rho, fI, fR, delta_beta, args_static):
     """
     Deterministic JAX forward simulation for parameter preoptimization.
+
+    Omits the stochastic AR-GARCH scan to construct `delta_beta`
 
     Parameters
     ----------
