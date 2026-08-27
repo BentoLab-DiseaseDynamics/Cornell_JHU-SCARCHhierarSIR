@@ -365,7 +365,7 @@ def run_training():
             H_raw, z_raw, sigma2_raw, eps_raw = forward_op(eta_raw, phi, omega, a_garch, b_garch, delta_beta_state_mean, L_cov_shocks, beta, rho, fI, fR, gamma, population, ts)
 
             # put output in posterior
-            H = pm.Deterministic("H", 7 * pt.math.softplus(H_raw), dims=("season", "state", "observation"))
+            H = pm.Deterministic("H", pt.math.softplus(7 * H_raw), dims=("season", "state", "observation"))
             z = pm.Deterministic("z", z_raw, dims=("modifier", "season", "state"))
             pm.Deterministic("delta_beta", z + delta_beta_state_mean[:, None, :])
             pm.Deterministic("sigma2", sigma2_raw, dims=("modifier", "season", "state"),)
