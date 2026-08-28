@@ -205,7 +205,7 @@ for cluster_idx in cluster_indices:
     mcmc.run(
         rng_key,
         **model_kwargs,
-        extra_fields=["potential_energy"]
+        extra_fields=["potential_energy", "adapt_state.step_size"]
     )
 
     print('\n..finished sampling\n')
