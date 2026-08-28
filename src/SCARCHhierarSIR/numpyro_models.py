@@ -285,7 +285,6 @@ forecasting_RV_dims = {
     # modifier parameters
     "eta_raw": ["modifier_eta", "season", "state"],
     "delta_beta_raw": ["modifier", "state"],
-    "delta_beta_state_mean": ["modifier", "state"],
     "omega_season_raw": ["season"],
     "omega": ["season", "state"],
 
@@ -300,7 +299,7 @@ forecasting_RV_dims = {
 
     # observation model
     "obs": ["season", "state", "horizon_observation"],
-    "pred": ["season", "state", "horizon_prediction"]
+    "pred": ["state", "horizon_forecast"]
 }
 
 def forecasting_model(data, weights, posterior_params, adj, args_static, n_states, n_seasons, n_modifiers, n_observations):
@@ -400,7 +399,10 @@ def forecasting_model(data, weights, posterior_params, adj, args_static, n_state
 
     alpha = 1.0 / posterior_params['alpha_inv'] 
 
-    numpyro.sample("obs", WeightedNB(mu=H[:,:,:n_observations], alpha=alpha, weights=weights), obs=data[:,:,:n_observations] if data is not None else None)
+    if data is None:
+        numpyro.sample("obs", WeightedNB(mu=H[:,:,:n_observations][None,:,:], alpha=alpha, weights=weights), obs=None)
+    else:
+        numpyro.sample("obs", WeightedNB(mu=H[:,:,:n_observations], alpha=alpha, weights=weights), obs=data[:,:,:n_observations])
 
     # ============================================================
     # Forecast model

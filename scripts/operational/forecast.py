@@ -45,9 +45,9 @@ challenge_end_reference_date = datetime(2026, 5, 30)    # must be the last satur
 season = '2025-2026'            
 n_observations = 12             # use all data available in the forecast season
 forecast_horizon = 20           # forecast sufficiently ahead to capture peaks
-n_preoptim = 100
-n_sample = 1
-n_tune = 0
+n_preoptim = 500
+n_sample = 10
+n_tune = 10
 beta = 0.455
 
 ## load the model-structural parameters and training metadata
@@ -218,9 +218,9 @@ for cluster_idx in cluster_indices:
 
     kernel = NUTS(
         forecasting_model,
-        step_size=0.001,
-        adapt_step_size=True,
-        max_tree_depth=6,
+        step_size=0.0002,
+        adapt_step_size=False,
+        max_tree_depth=12,
         init_strategy = init_to_value(values=map_params),
     )
 
@@ -314,14 +314,14 @@ for cluster_idx in cluster_indices:
                         color='black', alpha=0.1)    
         ax.scatter(dates_obs, data.values[0,s,:], marker='o', color='black')
         ## forecast
-        ax.plot(dates_pred, pred.median(dim=['chain', 'draw']).values[0,s,:], linewidth=1, color='red')
+        ax.plot(dates_pred, pred.median(dim=['chain', 'draw']).values[s,:], linewidth=1, color='red')
         ax.fill_between(dates_pred,
-                        pred.quantile(dim=['chain', 'draw'], q=0.025).values[0,s,:],
-                        pred.quantile(dim=['chain', 'draw'], q=0.975).values[0,s,:],
+                        pred.quantile(dim=['chain', 'draw'], q=0.025).values[s,:],
+                        pred.quantile(dim=['chain', 'draw'], q=0.975).values[s,:],
                         color='red', alpha=0.1)
         ax.fill_between(dates_pred,
-                        pred.quantile(dim=['chain', 'draw'], q=0.25).values[0,s,:],
-                        pred.quantile(dim=['chain', 'draw'], q=0.75).values[0,s,:],
+                        pred.quantile(dim=['chain', 'draw'], q=0.25).values[s,:],
+                        pred.quantile(dim=['chain', 'draw'], q=0.75).values[s,:],
                         color='red', alpha=0.1)    
         fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
         fig.tight_layout()
@@ -337,7 +337,6 @@ for cluster_idx in cluster_indices:
 
     # remove 'seasons' dimension and flatten the 'chain' and 'draw' dimensions into 'draw'
     ## [forecast]
-    pred = pred.squeeze("season", drop=True)
     pred = (pred.stack(sample=("chain", "draw")).reset_index("sample", drop=True).rename({"sample": "draw"}))
     pred = pred.assign_coords(draw=np.arange(pred.sizes["draw"]))
     pred = pred.rename({"horizon_forecast": "horizon"})
