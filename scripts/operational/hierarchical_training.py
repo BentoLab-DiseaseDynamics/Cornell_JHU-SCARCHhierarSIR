@@ -248,6 +248,7 @@ for cluster_idx in cluster_indices:
         n_states=n_states,
         n_seasons=n_seasons,
         n_modifiers=n_modifiers,
+        extra_fields=["potential_energy"]
     )
 
 
@@ -263,6 +264,16 @@ for cluster_idx in cluster_indices:
     # TODO: save the inverse mass matrix
     inv_mass_matrix = mcmc.last_state.adapt_state.inverse_mass_matrix # you will save this as a .json and then use it to restart runs
 
+    # plot the log probability
+    fig,ax = plt.subplots(figsize=(8.3, 11.7/4))
+    for chain in trace.sample_stats.lp.coords['chain'].values:
+        ax.plot(trace.sample_stats.lp.sel(chain=chain), label=f"chain {chain}")
+        ax.legend()
+    plt.show()
+    plt.tight_layout()
+    os.makedirs(os.path.join(cluster_output_folder,'traces'), exist_ok=True)
+    plt.savefig(os.path.join(cluster_output_folder,f'traces/log_probability.pdf'))
+    plt.close()
 
     print('\nmaking traceplots\n')
 
@@ -280,7 +291,6 @@ for cluster_idx in cluster_indices:
                     ]
 
     # Save original traces
-    os.makedirs(os.path.join(cluster_output_folder,'traces'), exist_ok=True)
     for var in variables2plot:
         arviz.plot_trace_dist(trace, var_names=[var], compact=True, combined=True, kind='kde') 
         plt.savefig(os.path.join(cluster_output_folder,f'traces/trace-{var}.pdf'))
