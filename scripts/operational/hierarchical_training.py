@@ -27,8 +27,7 @@ jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 import numpyro
 numpyro.set_host_device_count(n_chains)
-import numpyro.distributions as dist
-from numpyro.infer import NUTS, MCMC, Predictive, init_to_value, init_to_median
+from numpyro.infer import NUTS, MCMC, Predictive, init_to_value
 import arviz
 import optax
 # model package
@@ -66,7 +65,7 @@ cont_sampling = False # To continue sampling, the number of chains and the obser
 ## save model-structural parameters and training metadata
 output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
 os.makedirs(output_folder, exist_ok=True)
-params = {"a_garch": a_garch, "b_garch": b_garch, "phi": phi, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "modifier_length": modifier_length, "start_simulation": start_simulation,
+params = {"beta": 0.455, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "modifier_length": modifier_length, "start_simulation": start_simulation,
             "modifier_ref_month": modifier_ref_month, "modifier_ref_day": modifier_ref_day, 'clustering_name': clustering_name,
             "observations": n_observations, 'seasons': seasons}
 with open(os.path.join(output_folder, "model_config.json"), "w") as f:
@@ -119,18 +118,13 @@ for cluster_idx in cluster_indices:
 
     data = impute_outliers(data)
 
-    # Pre-optimize the forward simulation model's parameters
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    print('pre-optimization\n')
-    print('(iter, score)')
-
-    args_static = (start_simulation, max(ts[:,-1]), modifier_length, jnp.full((n_seasons, n_states), beta), gamma, jnp.asarray(demo), ts)
 
     # Build numpyro model
     # ~~~~~~~~~~~~~~~~~~~
 
-    print('\ncompiling numpyro model')
+    print('\ncompiling numpyro model\n')
+
+    args_static = (start_simulation, max(ts[:,-1]), modifier_length, jnp.full((n_seasons, n_states), beta), gamma, jnp.asarray(demo), ts)
 
     weights = compute_season_weights(jnp.asarray(data))
 
@@ -160,8 +154,12 @@ for cluster_idx in cluster_indices:
         n_modifiers=n_modifiers,
     )
 
+
     # Find the model's MAP
     # ~~~~~~~~~~~~~~~~~~~~
+
+    print('pre-optimizing MAP\n')
+    print('(iter, score)')
 
     # run optimisation
     map_params = find_map(training_model, model_kwargs, n_preoptim)
@@ -179,6 +177,8 @@ for cluster_idx in cluster_indices:
         plt.savefig(os.path.join(cluster_output_folder,f'initial-optim/state_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
         plt.close(fig)
 
+    import sys
+    sys.exit()
 
     # Sample numpyro model
     # ~~~~~~~~~~~~~~~~~~~~
