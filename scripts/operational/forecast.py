@@ -21,13 +21,13 @@ import xarray as xr
 import multiprocessing as mp
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
-import arviz
 # jax and diffrax
 import jax
 import jax.numpy as jnp
 from numpyro.infer import NUTS, MCMC, Predictive, init_to_value
 import numpyro
 numpyro.set_host_device_count(n_chains)
+import arviz # must be after numpyro.infer
 # model package
 from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, simout_to_hubverse_admissions, simout_to_hubverse_peak_admissions, simout_to_hubverse_peak_timing
 from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
@@ -46,9 +46,8 @@ season = '2025-2026'
 n_observations = 12             # use all data available in the forecast season
 forecast_horizon = 20           # forecast sufficiently ahead to capture peaks
 n_preoptim = 100
-n_sample = 2
-n_tune = 2
-sigma_grw = 0.01
+n_sample = 1
+n_tune = 0
 beta = 0.455
 
 ## load the model-structural parameters and training metadata
@@ -166,7 +165,8 @@ for cluster_idx in cluster_indices:
         "state": state_fips_index['abbreviation_state'].values,
         "season": [season,],
         "modifier": np.arange(n_modifiers),
-        "observation": np.arange(n_observations),
+        "modifier_eta": np.arange(n_modifiers-1),
+        "observation": np.arange(len(np.squeeze(ts))),
         "horizon_forecast": np.arange(forecast_horizon),
         "horizon_observation": [-i for i in range(1, n_observations + 1)]
     }
@@ -218,9 +218,9 @@ for cluster_idx in cluster_indices:
 
     kernel = NUTS(
         forecasting_model,
-        step_size=0.0002,
-        adapt_step_size=False,
-        max_tree_depth=10,
+        step_size=0.001,
+        adapt_step_size=True,
+        max_tree_depth=6,
         init_strategy = init_to_value(values=map_params),
     )
 
@@ -236,7 +236,7 @@ for cluster_idx in cluster_indices:
     mcmc.run(
         rng_key,
         **model_kwargs,
-        extra_fields=["potential_energy"]
+        extra_fields=["potential_energy", "adapt_state.step_size"]
     )
 
     print('\n..finished sampling\n')
@@ -249,7 +249,7 @@ for cluster_idx in cluster_indices:
     trace.to_netcdf(os.path.join(output_folder, "trace.nc"))
 
     # Generate traceplots
-    variables2plot = ['rho', 'fI', 'fR', 'phi', 'omega', 'sigma2_0']
+    variables2plot = ['rho', 'fI', 'fR', 'omega']
 
     # Save original traces
     os.makedirs(os.path.join(output_folder, 'traces'), exist_ok=True)
@@ -267,6 +267,7 @@ for cluster_idx in cluster_indices:
     predictive = Predictive(
         forecasting_model,
         posterior_samples=mcmc.get_samples(),
+        return_sites = ["obs", "pred"]
     )
 
     model_kwargs.update({'data': None})
@@ -275,10 +276,9 @@ for cluster_idx in cluster_indices:
 
     # convert to arviz
     posterior_predictive = arviz.from_numpyro(mcmc, posterior_predictive=posterior_predictive, coords=coords, dims=forecasting_RV_dims)
-    posterior_predictive.to_netcdf(os.path.join(output_folder, "posterior_predictive.nc"))
 
-    import sys
-    sys.exit()
+    # save posterior predictive
+    posterior_predictive.to_netcdf(os.path.join(output_folder, "posterior_predictive.nc"))
 
 
     # Visualise goodness-of-fit
