@@ -177,9 +177,6 @@ for cluster_idx in cluster_indices:
         plt.savefig(os.path.join(cluster_output_folder,f'initial-optim/state_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
         plt.close(fig)
 
-    import sys
-    sys.exit()
-
     # Sample numpyro model
     # ~~~~~~~~~~~~~~~~~~~~
 
@@ -192,7 +189,7 @@ for cluster_idx in cluster_indices:
         training_model,
         step_size=0.0001,
         adapt_step_size=False,
-        max_tree_depth=12,
+        max_tree_depth=6,
         init_strategy = init_to_value(values=map_params),
     )
 
@@ -200,8 +197,8 @@ for cluster_idx in cluster_indices:
         kernel,
         num_warmup=n_burn,
         num_samples=n_sample,
-        num_chains=1,
-        chain_method="sequential",
+        num_chains=n_chains,
+        chain_method="parallel",
         progress_bar=True,
     )
 
