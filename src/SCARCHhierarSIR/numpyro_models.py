@@ -179,6 +179,9 @@ def training_model(data, weights, adj, phi, a_garch, b_garch, init, args_static,
     L_Q_shocks = jnp.linalg.cholesky(Q_shocks)
     L_cov_shocks = jnp.linalg.solve(L_Q_shocks, I)
 
+    # spatially correlate shocks
+    eta_raw = numpyro.sample("eta_raw", dist.Normal(0, 1).expand([n_modifiers - 1, n_seasons, n_states]))
+    eta = jnp.einsum("ij,tsj->tsi", L_cov_shocks, eta_raw)
 
     # ============================================================
     #  seasonal average modifiers per state (spatially correlated)
@@ -196,9 +199,6 @@ def training_model(data, weights, adj, phi, a_garch, b_garch, init, args_static,
     numpyro.deterministic("a_garch", a_garch)
     numpyro.deterministic("b_garch", b_garch)
     numpyro.deterministic("phi", phi)
-
-    eta_raw = numpyro.sample("eta_raw", dist.Normal(0, 1).expand([n_modifiers - 1, n_seasons, n_states]))
-
 
     # omega
 
@@ -233,13 +233,12 @@ def training_model(data, weights, adj, phi, a_garch, b_garch, init, args_static,
     # ============================================================
 
     H_raw, z_raw, sigma2_raw, eps_raw = forward_sim_jax(
-        eta_raw,
+        eta,
         phi,
         omega,
         a_garch,
         b_garch,
         delta_beta_state_mean,
-        L_cov_shocks,
         rho,
         fI,
         fR,

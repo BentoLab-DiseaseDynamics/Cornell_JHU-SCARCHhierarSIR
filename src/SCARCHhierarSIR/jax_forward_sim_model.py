@@ -297,7 +297,7 @@ def ar_garch_scan(eta, phi, omega, a_garch, b_garch):
 ## Combine all parts into one jax-function and jit it ##
 ########################################################
 
-def forward_sim_jax(eta_raw, phi, omega, a_garch, b_garch, delta_beta_state_mean, L_cov_shocks, rho, fI, fR, args_static):
+def forward_sim_jax(eta, phi, omega, a_garch, b_garch, delta_beta_state_mean, rho, fI, fR, args_static):
     """
     Complete JAX forward simulation model.
 
@@ -319,19 +319,16 @@ def forward_sim_jax(eta_raw, phi, omega, a_garch, b_garch, delta_beta_state_mean
     # Unpack static arguments
     t0, t1_max, modifier_length, beta, gamma, population, ts = args_static
 
-    # 1. Spatially correlate shocks
-    eta = jnp.einsum("ij,tsj->tsi", L_cov_shocks, eta_raw)
-
-    # 2. AR-GARCH recursion
+    # 1. AR-GARCH recursion
     z, sigma2, eps = ar_garch_scan(eta=eta, phi=phi, omega=omega, a_garch=a_garch, b_garch=b_garch) # shape: (modifier, season, state)
 
-    # 3. Construct modifier
+    # 2. Construct modifier
     delta_beta = z + delta_beta_state_mean[:, None, :] # shape: (modifier, season, state)
 
-    # 4. Convert modifiers to daily values
+    # 3. Convert modifiers to daily values
     delta_beta_daily = make_delta_beta_daily_batched(delta_beta=delta_beta, duration=modifier_length, t0=t0, t1=t1_max) # shape: (season, state, time)
 
-    # 5. Run batched ODE
+    # 4. Run batched ODE
     ys = simulate_all_jax(
         beta=beta,
         rho=rho,
@@ -347,7 +344,7 @@ def forward_sim_jax(eta_raw, phi, omega, a_garch, b_garch, delta_beta_state_mean
 
     # shape: (season, state, observation, 4)
 
-    # 6. Extract H
+    # 5. Extract and return H
     H = ys[..., 3] # shape: (season, state, observation)
 
     return H, z, sigma2, eps
