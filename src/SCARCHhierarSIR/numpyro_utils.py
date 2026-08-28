@@ -99,7 +99,7 @@ def find_map(model, model_kwargs, n_preoptim=1000, lr=1e-2):
     # Optimize and print progress
     # --------------------------------------------------
 
-    for i in range(n_preoptim):
+    for i in range(n_preoptim+1):
 
         z, opt_state, pe = step(z, opt_state)
 
