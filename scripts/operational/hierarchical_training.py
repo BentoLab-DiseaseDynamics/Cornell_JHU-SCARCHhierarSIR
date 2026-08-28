@@ -28,13 +28,12 @@ import jax.numpy as jnp
 import numpyro
 numpyro.set_host_device_count(n_chains)
 import numpyro.distributions as dist
-from numpyro.infer import NUTS, MCMC, Predictive, init_to_value
+from numpyro.infer import NUTS, MCMC, Predictive, init_to_value, init_to_median
 import arviz
+import optax
 # model package
 from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, impute_outliers
-from SCARCHhierarSIR.preoptimization import preoptimize_parameters, compute_initial_effects
-from SCARCHhierarSIR.jax_forward_sim_model import forward_sim_preopt_jax
-from SCARCHhierarSIR.numpyro_utils import compute_season_weights
+from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
 
 
 # all paths defined relative to this file
@@ -57,8 +56,8 @@ clustering_name = 'all'
 n_observations = 35             # run until start of May
 seasons = ['2023-2024', '2024-2025', '2025-2026']
 ## sampling effort
-n_sample = 50
-n_burn = 50
+n_sample = 75
+n_burn = 25
 training_name = f'test'
 n_preoptim = 500
 ## use previous sampling
@@ -128,68 +127,6 @@ for cluster_idx in cluster_indices:
 
     args_static = (start_simulation, max(ts[:,-1]), modifier_length, jnp.full((n_seasons, n_states), beta), gamma, jnp.asarray(demo), ts)
 
-    # initial guess
-    init_params = {
-        "rho": jnp.full((n_seasons, n_states), 0.0025),
-        "fI": jnp.full((n_seasons, n_states), 1e-4),
-        "fR": jnp.full((n_seasons, n_states), 0.25),
-        "delta_beta": jnp.zeros((n_modifiers, n_seasons, n_states)),
-    }
-
-    # pre-optimise it
-    args_diff_preoptim = preoptimize_parameters(
-        args_static=args_static,
-        data=data,
-        init_params=init_params,
-        n_iter=n_preoptim,
-    )
-
-    # run simulation
-    out = forward_sim_preopt_jax(
-            rho=args_diff_preoptim["rho"],
-            fI=args_diff_preoptim["fI"],
-            fR=args_diff_preoptim["fR"],
-            delta_beta=args_diff_preoptim["delta_beta"],
-            args_static=args_static,
-        )
-
-    # visualise the result
-    for s in range(n_states):
-        fig, ax = plt.subplots(nrows=1, figsize=(8.7, 11.3/4))
-        for i in range(n_seasons):
-            ax.plot(dt[i, :], 7*out[i, s, :], color='red', label='pred')
-            ax.scatter(dt[i, :], 7*data[i, s, :], marker='o', color='black', label='obs')
-        fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
-        fig.tight_layout()
-        os.makedirs(os.path.join(cluster_output_folder, 'initial-optim'), exist_ok=True)
-        plt.savefig(os.path.join(cluster_output_folder,f'initial-optim/state_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
-        plt.close(fig)
-
-    # compute the initial effect sizes
-    init = compute_initial_effects(args_diff_preoptim)
-
-    # make dictionary with initial sampler values
-    initvals = n_chains * [{'alpha_inv': 0.05 * jnp.ones(n_states), 'delta_beta_raw': init["delta_beta_mu"] / 0.25,
-            'log_rho_global_mean': init["log_rho"]["global"], 'rho_state_sd': 0.2, 'rho_state_raw': init["log_rho"]["state"] / 0.2, 'rho_season_sd': 0.2, 'rho_season_raw': init["log_rho"]["season"] / 0.2,
-            'log_fI_global_mean': init["log_fI"]["global"], 'fI_state_sd': 0.2, 'fI_state_raw': init["log_fI"]["state"] / 0.2, 'fI_season_sd': 0.2, 'fI_season_raw': init["log_fI"]["season"] / 0.2,
-            'logit_fR_global_mean': init["logit_fR"]["global"], 'fR_state_sd': 0.2, 'fR_state_raw': init["logit_fR"]["state"] / 0.2, 'fR_season_sd': 0.2, 'fR_season_raw': init["logit_fR"]["season"] / 0.2,
-            'log_omega_global_mean': jnp.log(0.05/3), 'omega_global_mean_shrinkage': 0.05/3, 'psi_1': 0.5, 'psi_2': 0.5}]
-
-    print('\nparameter hierarchy reconstruction\n')
-
-    print(f"Mean log-rho: {init['log_rho']['global']:.2f}")
-    print(f"Mean reconstruction error: {init['log_rho']['error_mean']:.2f} ({abs(init['log_rho']['error_mean'] / init['log_rho']['global'] * 100):.1f} %)")
-    print(f"Max reconstruction error: {init['log_rho']['error_max']:.2f} ({abs(init['log_rho']['error_max'] / init['log_rho']['global'] * 100):.1f} %)")
-
-    print(f"Mean log-fI: {init['log_fI']['global']:.2f}")
-    print(f"Mean reconstruction error: {init['log_fI']['error_mean']:.2f} ({abs(init['log_fI']['error_mean'] / init['log_fI']['global'] * 100):.1f} %)")
-    print(f"Max reconstruction error: {init['log_fI']['error_max']:.2f} ({abs(init['log_fI']['error_max'] / init['log_fI']['global'] * 100):.1f} %)")
-
-    print(f"Mean logit-fR: {init['logit_fR']['global']:.2f}")
-    print(f"Mean reconstruction error: {init['logit_fR']['error_mean']:.2f} ({abs(init['logit_fR']['error_mean'] / init['logit_fR']['global'] * 100):.1f} %)")
-    print(f"Max reconstruction error: {init['logit_fR']['error_max']:.2f} ({abs(init['logit_fR']['error_max'] / init['logit_fR']['global'] * 100):.1f} %)")
-
-
     # Build numpyro model
     # ~~~~~~~~~~~~~~~~~~~
 
@@ -209,6 +146,39 @@ for cluster_idx in cluster_indices:
         "modifier_eta": np.arange(n_modifiers-1)
     }
 
+    # construct its arguments
+    model_kwargs = dict(
+        data=jnp.asarray(7 * data),
+        weights=jnp.asarray(weights),
+        adj=jnp.asarray(adj),
+        phi=phi,
+        a_garch=a_garch,
+        b_garch=b_garch,
+        args_static=args_static,
+        n_states=n_states,
+        n_seasons=n_seasons,
+        n_modifiers=n_modifiers,
+    )
+
+    # Find the model's MAP
+    # ~~~~~~~~~~~~~~~~~~~~
+
+    # run optimisation
+    map_params = find_map(training_model, model_kwargs, n_preoptim)
+
+    # visualise the result
+    out = map_params['H']
+    for s in range(n_states):
+        fig, ax = plt.subplots(nrows=1, figsize=(8.7, 11.3/4))
+        for i in range(n_seasons):
+            ax.plot(dt[i, :], out[i, s, :], color='red', label='pred')
+            ax.scatter(dt[i, :], 7*data[i, s, :], marker='o', color='black', label='obs')
+        fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
+        fig.tight_layout()
+        os.makedirs(os.path.join(cluster_output_folder, 'initial-optim'), exist_ok=True)
+        plt.savefig(os.path.join(cluster_output_folder,f'initial-optim/state_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
+        plt.close(fig)
+
 
     # Sample numpyro model
     # ~~~~~~~~~~~~~~~~~~~~
@@ -220,37 +190,26 @@ for cluster_idx in cluster_indices:
 
     kernel = NUTS(
         training_model,
-        step_size=0.0002,
+        step_size=0.0001,
         adapt_step_size=False,
         max_tree_depth=12,
-        init_strategy = init_to_value(values=initvals[0]),
+        init_strategy = init_to_value(values=map_params),
     )
 
     mcmc = MCMC(
         kernel,
         num_warmup=n_burn,
         num_samples=n_sample,
-        num_chains=n_chains,
-        chain_method="parallel",
+        num_chains=1,
+        chain_method="sequential",
         progress_bar=True,
     )
 
     mcmc.run(
         rng_key,
-        data=jnp.asarray(7 * data),
-        weights=jnp.asarray(weights),
-        adj=jnp.asarray(adj),
-        phi=phi,
-        a_garch=a_garch,
-        b_garch=b_garch,
-        init=init,
-        args_static=args_static,
-        n_states=n_states,
-        n_seasons=n_seasons,
-        n_modifiers=n_modifiers,
+        **model_kwargs,
         extra_fields=["potential_energy"]
     )
-
 
     print('\n..finished sampling\n')
     print('\nsaving traces\n')
@@ -307,20 +266,9 @@ for cluster_idx in cluster_indices:
         posterior_samples=mcmc.get_samples(),
         )
 
-    posterior_predictive = predictive(
-        rng_predict,
-        data=None,
-        weights=jnp.asarray(weights),
-        adj=jnp.asarray(adj),
-        phi=phi,
-        a_garch=a_garch,
-        b_garch=b_garch,
-        init=init,
-        args_static=args_static,
-        n_states=n_states,
-        n_seasons=n_seasons,
-        n_modifiers=n_modifiers,
-    )
+    model_kwargs.update({'data': None})
+
+    posterior_predictive = predictive(rng_predict, **model_kwargs)
 
     # convert to arviz
     posterior_predictive = arviz.from_numpyro(mcmc, posterior_predictive=posterior_predictive, coords=coords, dims=training_RV_dims)

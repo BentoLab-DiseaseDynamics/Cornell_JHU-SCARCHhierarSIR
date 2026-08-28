@@ -73,14 +73,14 @@ training_RV_dims = {
 
 
 
-def training_model(data, weights, adj, phi, a_garch, b_garch, init, args_static, n_states, n_seasons, n_modifiers):
+def training_model(data, weights, adj, phi, a_garch, b_garch, args_static, n_states, n_seasons, n_modifiers):
     
     # ============================================================
     # Ascertainment: rho
     # ============================================================
 
     # Global
-    log_rho_global_mean = numpyro.sample("log_rho_global_mean", dist.Normal(init["log_rho"]["global"], 1/3))
+    log_rho_global_mean = numpyro.sample("log_rho_global_mean", dist.Normal(jnp.log(0.005), 1/3))
     numpyro.deterministic("rho_global_mean", jnp.exp(log_rho_global_mean))
 
     # State
@@ -108,7 +108,7 @@ def training_model(data, weights, adj, phi, a_garch, b_garch, init, args_static,
     # ============================================================
 
     # Global
-    log_fI_global_mean = numpyro.sample("log_fI_global_mean", dist.Normal(init["log_fI"]["global"], 1/3))
+    log_fI_global_mean = numpyro.sample("log_fI_global_mean", dist.Normal(jnp.log(0.0001), 1/3))
     numpyro.deterministic("fI_global_mean", jnp.exp(log_fI_global_mean))
 
     # State

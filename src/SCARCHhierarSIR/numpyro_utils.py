@@ -12,8 +12,107 @@ Licensed under CC BY-NC-SA 4.0
 ## Dependencies ##
 ##################
 
+import time
+import jax
+import optax
 import jax.numpy as jnp
 import numpyro.distributions as dist
+from numpyro.infer.util import initialize_model
+from numpyro.infer import init_to_median
+
+
+#####################
+## Finding the MAP ##
+#####################
+
+def find_map(model, model_kwargs, n_preoptim=1000, lr=1e-2):
+    """
+    Find the MAP estimate of a NumPyro model using Adam optimization.
+
+    Parameters
+    ----------
+    model : callable
+        NumPyro model.
+
+    model_kwargs : dict
+        Keyword arguments passed to `training_model`.
+
+    n_preoptim : int
+        Number of Adam optimization steps.
+
+    lr : float
+        Adam learning rate.
+
+    Returns
+    -------
+    map_params : dict
+        MAP estimate in the constrained parameter space used by the NumPyro model.
+    """
+
+    # --------------------------------------------------
+    # Initialize model in unconstrained space
+    # --------------------------------------------------
+
+    rng_key = jax.random.PRNGKey(int(time.time()))
+
+    init_params_info, potential_fn, postprocess_fn, model_trace = (
+        initialize_model(
+            rng_key,
+            model,
+            model_kwargs=model_kwargs,
+            init_strategy=init_to_median(),
+        )
+    )
+
+    z = init_params_info.z
+
+    # --------------------------------------------------
+    # Initialise Adams optimizer
+    # --------------------------------------------------
+
+    optimizer = optax.adam(lr)
+    opt_state = optimizer.init(z)
+
+    # --------------------------------------------------
+    # Define ptimization step
+    # --------------------------------------------------
+
+    @jax.jit
+    def step(z, opt_state):
+
+        potential_energy, grads = jax.value_and_grad(potential_fn)(z)
+
+        updates, opt_state = optimizer.update(
+            grads,
+            opt_state,
+            z,
+        )
+
+        z = optax.apply_updates(
+            z,
+            updates,
+        )
+
+        return z, opt_state, potential_energy
+
+    # --------------------------------------------------
+    # Optimize and print progress
+    # --------------------------------------------------
+
+    for i in range(n_preoptim):
+
+        z, opt_state, pe = step(z, opt_state)
+
+        if i % 100 == 0:
+            print(i, float(pe))
+
+    # --------------------------------------------------
+    # Transform back to constrained space
+    # --------------------------------------------------
+
+    map_params = postprocess_fn(z)
+
+    return map_params
 
 
 ##############################
