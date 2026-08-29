@@ -400,7 +400,7 @@ def forecasting_model(data, weights, posterior_params, adj, args_static, n_state
     alpha = 1.0 / posterior_params['alpha_inv'] 
 
     if data is None:
-        numpyro.sample("obs", WeightedNB(mu=H[:,:,:n_observations][None,:,:], alpha=alpha, weights=weights), obs=None)
+        numpyro.sample("obs", WeightedNB(mu=H[:,:,:n_observations], alpha=alpha, weights=weights), obs=None)
     else:
         numpyro.sample("obs", WeightedNB(mu=H[:,:,:n_observations], alpha=alpha, weights=weights), obs=data[:,:,:n_observations])
 

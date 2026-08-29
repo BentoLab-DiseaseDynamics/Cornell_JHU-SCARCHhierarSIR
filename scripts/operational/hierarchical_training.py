@@ -55,7 +55,7 @@ clustering_name = 'all'
 n_observations = 35             # run until start of May
 seasons = ['2023-2024', '2024-2025', '2025-2026']
 ## sampling effort
-n_sample = 75
+n_sample = 50
 n_burn = 25
 training_name = f'test'
 n_preoptim = 500
@@ -189,7 +189,7 @@ for cluster_idx in cluster_indices:
         training_model,
         step_size=0.0001,
         adapt_step_size=False,
-        max_tree_depth=6,
+        max_tree_depth=12,
         init_strategy = init_to_value(values=map_params),
     )
 

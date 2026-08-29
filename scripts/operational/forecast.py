@@ -46,8 +46,8 @@ season = '2025-2026'
 n_observations = 12             # use all data available in the forecast season
 forecast_horizon = 20           # forecast sufficiently ahead to capture peaks
 n_preoptim = 500
-n_sample = 10
-n_tune = 10
+n_sample = 25
+n_tune = 25
 beta = 0.455
 
 ## load the model-structural parameters and training metadata
@@ -218,9 +218,10 @@ for cluster_idx in cluster_indices:
 
     kernel = NUTS(
         forecasting_model,
-        step_size=0.0002,
-        adapt_step_size=False,
+        step_size=0.001,
+        adapt_step_size=True,
         max_tree_depth=12,
+        target_accept_prob=0.6,
         init_strategy = init_to_value(values=map_params),
     )
 
@@ -258,6 +259,15 @@ for cluster_idx in cluster_indices:
         plt.savefig(os.path.join(output_folder, f'traces/trace-{var}.pdf'))
         plt.close()
 
+    # plot the log probability
+    fig,ax = plt.subplots(figsize=(8.3, 11.7/4))
+    for chain in trace.sample_stats.step_size.coords['chain'].values:
+        ax.plot(trace.sample_stats.step_size.sel(chain=chain), label=f"chain {chain}")
+        ax.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_folder,f'traces/step_sizes.pdf'))
+    plt.close()
+
 
     # Make posterior predictive
     # ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -275,7 +285,28 @@ for cluster_idx in cluster_indices:
     posterior_predictive = predictive(rng_predict, **model_kwargs)
 
     # convert to arviz
-    posterior_predictive = arviz.from_numpyro(mcmc, posterior_predictive=posterior_predictive, coords=coords, dims=forecasting_RV_dims)
+    posterior_predictive = arviz.from_numpyro(mcmc, posterior_predictive=posterior_predictive) #, coords=coords, dims=forecasting_RV_dims)
+
+    # Rename obs and pred dimensions
+    pp = posterior_predictive["posterior_predictive"]
+    obs = pp["obs"].rename({"obs_dim_0": "season", "obs_dim_1": "state", "obs_dim_2": "horizon_observation"})
+    pred = pp["pred"].rename({"pred_dim_0": "season", "pred_dim_1": "state", "pred_dim_2": "horizon_forecast"})
+
+    # Assign coordinates directly to the variables
+    obs = obs.assign_coords({"season": coords["season"], "state": coords["state"], "horizon_observation": coords["horizon_observation"]})
+    pred = pred.assign_coords({"season": coords["season"], "state": coords["state"], "horizon_forecast": coords["horizon_forecast"]})
+
+    # Replace variables
+    pp["obs"] = obs
+    pp["pred"] = pred
+    posterior_predictive["posterior_predictive"] = pp
+
+    # do observed data too
+    pp = posterior_predictive['observed_data']
+    obs = pp["obs"].rename({"obs_dim_0": "season", "obs_dim_1": "state", "obs_dim_2": "horizon_observation"})
+    obs = obs.assign_coords({"season": coords["season"], "state": coords["state"], "horizon_observation": coords["horizon_observation"]})
+    pp["obs"] = obs
+    posterior_predictive["observed_data"] = pp
 
     # save posterior predictive
     posterior_predictive.to_netcdf(os.path.join(output_folder, "posterior_predictive.nc"))
@@ -314,14 +345,14 @@ for cluster_idx in cluster_indices:
                         color='black', alpha=0.1)    
         ax.scatter(dates_obs, data.values[0,s,:], marker='o', color='black')
         ## forecast
-        ax.plot(dates_pred, pred.median(dim=['chain', 'draw']).values[s,:], linewidth=1, color='red')
+        ax.plot(dates_pred, pred.median(dim=['chain', 'draw']).values[0,s,:], linewidth=1, color='red')
         ax.fill_between(dates_pred,
-                        pred.quantile(dim=['chain', 'draw'], q=0.025).values[s,:],
-                        pred.quantile(dim=['chain', 'draw'], q=0.975).values[s,:],
+                        pred.quantile(dim=['chain', 'draw'], q=0.025).values[0,s,:],
+                        pred.quantile(dim=['chain', 'draw'], q=0.975).values[0,s,:],
                         color='red', alpha=0.1)
         ax.fill_between(dates_pred,
-                        pred.quantile(dim=['chain', 'draw'], q=0.25).values[s,:],
-                        pred.quantile(dim=['chain', 'draw'], q=0.75).values[s,:],
+                        pred.quantile(dim=['chain', 'draw'], q=0.25).values[0,s,:],
+                        pred.quantile(dim=['chain', 'draw'], q=0.75).values[0,s,:],
                         color='red', alpha=0.1)    
         fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
         fig.tight_layout()
@@ -337,6 +368,7 @@ for cluster_idx in cluster_indices:
 
     # remove 'seasons' dimension and flatten the 'chain' and 'draw' dimensions into 'draw'
     ## [forecast]
+    pred = pred.squeeze("season", drop=True)
     pred = (pred.stack(sample=("chain", "draw")).reset_index("sample", drop=True).rename({"sample": "draw"}))
     pred = pred.assign_coords(draw=np.arange(pred.sizes["draw"]))
     pred = pred.rename({"horizon_forecast": "horizon"})
