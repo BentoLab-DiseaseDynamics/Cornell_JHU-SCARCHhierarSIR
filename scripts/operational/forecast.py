@@ -48,12 +48,13 @@ forecast_horizon = 20           # forecast sufficiently ahead to capture peaks
 n_preoptim = 500
 n_sample = 25
 n_tune = 25
-beta = 0.455
+
 
 ## load the model-structural parameters and training metadata
 with open(os.path.join(training_folder, "model_config.json"), "r") as f:
     params = json.load(f)
 
+beta = 0.455    # params["beta"]
 gamma = params["gamma"]
 n_modifiers = params["n_modifiers"]
 modifier_length = params["modifier_length"]
@@ -259,7 +260,7 @@ for cluster_idx in cluster_indices:
         plt.savefig(os.path.join(output_folder, f'traces/trace-{var}.pdf'))
         plt.close()
 
-    # plot the log probability
+    # plot the step sizes
     fig,ax = plt.subplots(figsize=(8.3, 11.7/4))
     for chain in trace.sample_stats.step_size.coords['chain'].values:
         ax.plot(trace.sample_stats.step_size.sel(chain=chain), label=f"chain {chain}")

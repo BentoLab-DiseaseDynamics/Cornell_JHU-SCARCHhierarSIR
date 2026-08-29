@@ -220,15 +220,14 @@ for cluster_idx in cluster_indices:
     # TODO: save the inverse mass matrix
     inv_mass_matrix = mcmc.last_state.adapt_state.inverse_mass_matrix # you will save this as a .json and then use it to restart runs
 
-    # plot the log probability
+    # plot the step sizes
     fig,ax = plt.subplots(figsize=(8.3, 11.7/4))
-    for chain in trace.sample_stats.lp.coords['chain'].values:
-        ax.plot(trace.sample_stats.lp.sel(chain=chain), label=f"chain {chain}")
-        ax.legend()
-    plt.show()
+    for chain in trace.sample_stats.step_size.coords['chain'].values:
+        ax.plot(trace.sample_stats.step_size.sel(chain=chain), label=f"chain {chain}")
+    ax.legend()
     plt.tight_layout()
     os.makedirs(os.path.join(cluster_output_folder,'traces'), exist_ok=True)
-    plt.savefig(os.path.join(cluster_output_folder,f'traces/log_probability.pdf'))
+    plt.savefig(os.path.join(cluster_output_folder,f'traces/step_sizes.pdf'))
     plt.close()
 
     print('\nmaking traceplots\n')
