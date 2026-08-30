@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 # jax and diffrax
 import jax
+jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 from numpyro.infer import NUTS, MCMC, Predictive, init_to_value
 import numpyro
