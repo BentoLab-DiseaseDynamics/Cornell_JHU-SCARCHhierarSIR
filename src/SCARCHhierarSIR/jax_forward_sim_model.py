@@ -11,19 +11,18 @@ import diffrax
 def SIR_vector_field(t, y, args):
 
     # unpack states
-    S, I, R, H = y
+    S, I, H = y
 
     # unpack parameters
-    beta, daily_ts, delta_beta_daily, gamma, rho = args
+    beta, daily_ts, delta_beta_daily, gamma, rho, pop = args
     
     # prevent negative state values due to rounding errors
     S = jax.nn.softplus(S)
     I = jax.nn.softplus(I)
-    R = jax.nn.softplus(R)
     H = jax.nn.softplus(H)
 
     # total population
-    N = S + I + R
+    N = pop
 
     # interpolate modifier at current ODE time
     delta_beta = 1.0 + jnp.interp(t, xp=daily_ts, fp=delta_beta_daily)
@@ -34,12 +33,11 @@ def SIR_vector_field(t, y, args):
     # SIR equations
     dS = -S * FOI
     dI = S * FOI - gamma * I
-    dR = gamma * I
 
     # observation process
     dH = rho * S * FOI - H
 
-    return jnp.array([dS, dI, dR, dH])
+    return jnp.array([dS, dI, dH])
 
 
 #############################################
@@ -80,7 +78,7 @@ def simulate_one_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
     daily_ts = jnp.arange(t0, t1)
 
     # Initial condition
-    y0 = population * jnp.array([1.0 - fI - fR, fI, fR, 0.0])
+    y0 = population * jnp.array([1.0 - fI - fR, fI, 0.0])
 
     # Diffrax term
     term = diffrax.ODETerm(SIR_vector_field)
@@ -91,9 +89,9 @@ def simulate_one_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
         diffrax.Tsit5(),
         t0=t0,
         t1=t1,
-        dt0=0.1,
+        dt0=1,
         y0=y0,
-        args=(beta, daily_ts, delta_beta_daily, gamma, rho),
+        args=(beta, daily_ts, delta_beta_daily, gamma, rho, population),
         saveat=diffrax.SaveAt(ts=ts),
         stepsize_controller=diffrax.PIDController(rtol=1e-4, atol=1e-4),
         adjoint=diffrax.DirectAdjoint(),
