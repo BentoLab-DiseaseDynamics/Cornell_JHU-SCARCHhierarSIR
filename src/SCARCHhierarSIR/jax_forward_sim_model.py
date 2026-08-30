@@ -89,7 +89,7 @@ def simulate_one_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
         y0=y0,
         args=(beta, daily_ts, delta_beta_daily, gamma, rho, population),
         saveat=diffrax.SaveAt(ts=ts),
-        stepsize_controller=diffrax.PIDController(rtol=1e-4, atol=1e-4),
+        stepsize_controller=diffrax.ConstantStepSize(),
         adjoint=diffrax.DirectAdjoint(),
     )
 

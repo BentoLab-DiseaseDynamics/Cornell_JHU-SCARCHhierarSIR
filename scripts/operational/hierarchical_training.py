@@ -55,10 +55,10 @@ clustering_name = 'all'
 n_observations = 35             # run until start of May
 seasons = ['2023-2024', '2024-2025', '2025-2026']
 ## sampling effort
-n_sample = 50
-n_burn = 25
+n_sample = 15
+n_burn = 15
 training_name = f'test'
-n_preoptim = 500
+n_preoptim = 2500
 ## use previous sampling
 cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
 
