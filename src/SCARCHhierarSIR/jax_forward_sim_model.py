@@ -11,7 +11,7 @@ import diffrax
 def SIR_vector_field(t, y, args):
 
     # unpack states
-    S, I, H = y
+    S, I = y
 
     # unpack parameters
     beta, daily_ts, delta_beta_daily, gamma, rho, pop = args
@@ -19,7 +19,6 @@ def SIR_vector_field(t, y, args):
     # prevent negative state values due to rounding errors
     S = jax.nn.softplus(S)
     I = jax.nn.softplus(I)
-    H = jax.nn.softplus(H)
 
     # total population
     N = pop
@@ -34,10 +33,7 @@ def SIR_vector_field(t, y, args):
     dS = -S * FOI
     dI = S * FOI - gamma * I
 
-    # observation process
-    dH = rho * S * FOI - H
-
-    return jnp.array([dS, dI, dH])
+    return jnp.array([dS, dI])
 
 
 #############################################
@@ -78,7 +74,7 @@ def simulate_one_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
     daily_ts = jnp.arange(t0, t1)
 
     # Initial condition
-    y0 = population * jnp.array([1.0 - fI - fR, fI, 0.0])
+    y0 = population * jnp.array([1.0 - fI - fR, fI])
 
     # Diffrax term
     term = diffrax.ODETerm(SIR_vector_field)
@@ -96,6 +92,11 @@ def simulate_one_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
         stepsize_controller=diffrax.PIDController(rtol=1e-4, atol=1e-4),
         adjoint=diffrax.DirectAdjoint(),
     )
+
+    # Compute hospital admissions in week
+    ys = sol.ys
+    weekly_hosp = jnp.concatenate([jnp.zeros(1), rho * (ys[:-1, 0] - ys[1:, 0])])
+    ys = ys.at[:, 2].set(weekly_hosp/7)
 
     return sol.ys
 
@@ -343,6 +344,6 @@ def forward_sim_jax(eta, phi, omega, a_garch, b_garch, delta_beta_state_mean, rh
     # shape: (season, state, observation, 4)
 
     # 5. Extract and return H
-    H = ys[..., 3] # shape: (season, state, observation)
+    H = ys[..., -1] # shape: (season, state, observation)
 
     return H, z, sigma2, eps
