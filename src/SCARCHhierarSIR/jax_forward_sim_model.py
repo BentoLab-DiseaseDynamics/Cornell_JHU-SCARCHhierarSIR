@@ -94,11 +94,11 @@ def simulate_one_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
     )
 
     # Compute hospital admissions in week
-    ys = sol.ys
-    weekly_hosp = jnp.concatenate([jnp.zeros(1), rho * (ys[:-1, 0] - ys[1:, 0])])
-    ys = ys.at[:, 2].set(weekly_hosp/7)
+    hosp_diff = rho * (sol.ys[:-1, 0] - sol.ys[1:, 0])
+    hosp_first = (5.0 * hosp_diff[0] - hosp_diff[1] - hosp_diff[2]) / 3.0   # linear interpolation of first 3 weeks
+    weekly_hosp = jnp.concatenate([hosp_first[None], hosp_diff])
 
-    return sol.ys
+    return weekly_hosp
 
 
 ##########################################################################################
@@ -328,7 +328,7 @@ def forward_sim_jax(eta, phi, omega, a_garch, b_garch, delta_beta_state_mean, rh
     delta_beta_daily = make_delta_beta_daily_batched(delta_beta=delta_beta, duration=modifier_length, t0=t0, t1=t1_max) # shape: (season, state, time)
 
     # 4. Run batched ODE
-    ys = simulate_all_jax(
+    H = simulate_all_jax(
         beta=beta,
         rho=rho,
         fI=fI,
@@ -341,9 +341,6 @@ def forward_sim_jax(eta, phi, omega, a_garch, b_garch, delta_beta_state_mean, rh
         ts=ts,
     )
 
-    # shape: (season, state, observation, 4)
-
-    # 5. Extract and return H
-    H = ys[..., -1] # shape: (season, state, observation)
+    # shape: (season, state, observation)
 
     return H, z, sigma2, eps

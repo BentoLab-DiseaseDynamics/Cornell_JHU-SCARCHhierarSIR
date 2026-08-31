@@ -29,7 +29,7 @@ import numpyro
 numpyro.set_host_device_count(n_chains)
 from numpyro.infer import NUTS, MCMC, Predictive, init_to_value
 import arviz
-import optax
+
 # model package
 from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, impute_outliers
 from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
@@ -55,10 +55,10 @@ clustering_name = 'all'
 n_observations = 35             # run until start of May
 seasons = ['2023-2024', '2024-2025', '2025-2026']
 ## sampling effort
-n_sample = 15
-n_burn = 15
+n_sample = 75
+n_burn = 25
 training_name = f'test'
-n_preoptim = 2500
+n_preoptim = 1000
 ## use previous sampling
 cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
 
@@ -111,7 +111,6 @@ for cluster_idx in cluster_indices:
     # ~~~~~~~~~~~~~~~~~
 
     reference_date, data, dt, ts, n_observations = get_NHSN_HRD_data(start_calibrations, modifier_reference_dates, n_observations, forecast_horizon=None, state_fips=state_fips_index['fips_state'].values) # (n_season, n_variables, n_observations)
-    data = data / 7 # divide weekly incidence by 7
 
     # Outlier detection
     # ~~~~~~~~~~~~~~~~~
@@ -142,7 +141,7 @@ for cluster_idx in cluster_indices:
 
     # construct its arguments
     model_kwargs = dict(
-        data=jnp.asarray(7 * data),
+        data=jnp.asarray(data),
         weights=jnp.asarray(weights),
         adj=jnp.asarray(adj),
         phi=phi,
@@ -164,18 +163,23 @@ for cluster_idx in cluster_indices:
     # run optimisation
     map_params = find_map(training_model, model_kwargs, n_preoptim)
 
+    print(jnp.exp(map_params['log_fI_global_mean']))
+
     # visualise the result
     out = map_params['H']
     for s in range(n_states):
         fig, ax = plt.subplots(nrows=1, figsize=(8.7, 11.3/4))
         for i in range(n_seasons):
             ax.plot(dt[i, :], out[i, s, :], color='red', label='pred')
-            ax.scatter(dt[i, :], 7*data[i, s, :], marker='o', color='black', label='obs')
+            ax.scatter(dt[i, :], data[i, s, :], marker='o', color='black', label='obs')
         fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
         fig.tight_layout()
         os.makedirs(os.path.join(cluster_output_folder, 'initial-optim'), exist_ok=True)
         plt.savefig(os.path.join(cluster_output_folder,f'initial-optim/state_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
         plt.close(fig)
+
+    import sys
+    sys.exit()
 
     # Sample numpyro model
     # ~~~~~~~~~~~~~~~~~~~~
