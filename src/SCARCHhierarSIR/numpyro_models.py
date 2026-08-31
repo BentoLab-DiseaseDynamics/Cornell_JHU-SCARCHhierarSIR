@@ -387,7 +387,7 @@ def forecasting_model(data, weights, posterior_params, adj, args_static, n_state
         args_static,
     )
 
-    H = numpyro.deterministic("H", jax.nn.softplus(7*H_raw))
+    H = numpyro.deterministic("H", jax.nn.softplus(H_raw))
     numpyro.deterministic("z", z_raw,)
     numpyro.deterministic("delta_beta", z_raw + delta_beta_state_mean[:, None, :])
     numpyro.deterministic("sigma2", sigma2_raw)

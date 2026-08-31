@@ -145,7 +145,6 @@ for training_name, season in zip(training_names, seasons):
                                                                             name = 'early_season_decrease',
                                                                             forecast_horizon=forecast_horizon,
                                                                             state_fips=state_fips_index['fips_state'].values) # (n_season, n_variables, n_observations)
-            data = data / 7                                     # divide weekly incidence by 7
             reference_date = dt[-1][-1] + timedelta(weeks=1) - timedelta(weeks=forecast_horizon)    # compute true reference date based on data instead of filename
 
 
@@ -155,7 +154,6 @@ for training_name, season in zip(training_names, seasons):
                                                                             name = 'early_season_decrease',
                                                                             forecast_horizon=forecast_horizon,
                                                                             state_fips=state_fips_index['fips_state'].values) # (n_season, n_variables, n_observations)
-            all_data = all_data / 7 
 
             # output folder name
             output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/incremental_forecast/{training_name}/{season}/reference_date-{reference_date.strftime('%Y-%m-%d')}/cluster_{cluster_idx}/')
@@ -218,7 +216,7 @@ for training_name, season in zip(training_names, seasons):
 
             # construct its arguments
             model_kwargs = dict(
-                data=jnp.asarray(7 * data),
+                data=jnp.asarray(data),
                 weights=jnp.asarray(weights),
                 posterior_params=posterior_params,
                 adj=jnp.asarray(adj),
@@ -245,7 +243,7 @@ for training_name, season in zip(training_names, seasons):
                 fig, ax = plt.subplots(nrows=1, figsize=(8.7, 11.3/4))
                 for i in range(n_seasons):
                     ax.plot(dt[i, :n_observations], out[i, s, :], color='red', label='pred')
-                    ax.scatter(dt[i, :n_observations], 7*data[i, s, :n_observations], marker='o', color='black', label='obs')
+                    ax.scatter(dt[i, :n_observations], data[i, s, :n_observations], marker='o', color='black', label='obs')
                 fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
                 fig.tight_layout()
                 os.makedirs(os.path.join(output_folder, 'initial-optim'), exist_ok=True)

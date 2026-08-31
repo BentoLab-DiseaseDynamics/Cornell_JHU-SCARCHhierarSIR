@@ -14,20 +14,13 @@ def SIR_vector_field(t, y, args):
     S, I = y
 
     # unpack parameters
-    beta, daily_ts, delta_beta_daily, gamma, rho, pop = args
+    beta, daily_ts, delta_beta_daily, gamma = args
     
-    # prevent negative state values due to rounding errors
-    S = jax.nn.softplus(S)
-    I = jax.nn.softplus(I)
-
-    # total population
-    N = pop
-
     # interpolate modifier at current ODE time
     delta_beta = 1.0 + jnp.interp(t, xp=daily_ts, fp=delta_beta_daily)
 
     # force of infection
-    FOI = delta_beta * beta * I / N
+    FOI = delta_beta * beta * I
 
     # SIR equations
     dS = -S * FOI
@@ -74,7 +67,7 @@ def simulate_one_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
     daily_ts = jnp.arange(t0, t1)
 
     # Initial condition
-    y0 = population * jnp.array([1.0 - fI - fR, fI])
+    y0 = jnp.array([1.0 - fI - fR, fI])
 
     # Diffrax term
     term = diffrax.ODETerm(SIR_vector_field)
@@ -82,19 +75,19 @@ def simulate_one_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
     # Solve
     sol = diffrax.diffeqsolve(
         term,
-        diffrax.Tsit5(),
+        diffrax.Heun(),
         t0=t0,
         t1=t1,
-        dt0=1,
+        dt0=7,
         y0=y0,
-        args=(beta, daily_ts, delta_beta_daily, gamma, rho, population),
+        args=(beta, daily_ts, delta_beta_daily, gamma),
         saveat=diffrax.SaveAt(ts=ts),
         stepsize_controller=diffrax.ConstantStepSize(),
         adjoint=diffrax.DirectAdjoint(),
     )
 
     # Compute hospital admissions in week
-    hosp_diff = rho * (sol.ys[:-1, 0] - sol.ys[1:, 0])
+    hosp_diff = population * rho * (sol.ys[:-1, 0] - sol.ys[1:, 0])
     hosp_first = (5.0 * hosp_diff[0] - hosp_diff[1] - hosp_diff[2]) / 3.0   # linear interpolation of first 3 weeks
     weekly_hosp = jnp.concatenate([hosp_first[None], hosp_diff])
 
@@ -158,7 +151,7 @@ def simulate_all_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
 ## Modifier construction ##
 ###########################
 
-def make_delta_beta_daily_batched(delta_beta, duration, t0, t1, sigma=2.5):
+def make_delta_beta_daily_batched(delta_beta, duration, t0, t1, sigma=1):
     """
     Convert block-level modifiers into smoothed daily modifiers.
 
