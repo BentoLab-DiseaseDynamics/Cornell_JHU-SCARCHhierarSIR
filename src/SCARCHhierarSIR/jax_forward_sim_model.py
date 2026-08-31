@@ -98,7 +98,7 @@ def simulate_one_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
 ## Write the wrapper batching the single season/state simulator over states and seasons ##
 ##########################################################################################
 
-def simulate_all_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0, t1, ts,):
+def simulate_all_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0, t1, ts):
 
     """
     Batched SIR simulation over all seasons and states.
@@ -309,7 +309,7 @@ def forward_sim_jax(eta, phi, omega, a_garch, b_garch, delta_beta_state_mean, rh
     """
     
     # Unpack static arguments
-    t0, t1_max, modifier_length, beta, gamma, population, ts = args_static
+    t0, t1, modifier_length, beta, gamma, population, ts = args_static
 
     # 1. AR-GARCH recursion
     z, sigma2, eps = ar_garch_scan(eta=eta, phi=phi, omega=omega, a_garch=a_garch, b_garch=b_garch) # shape: (modifier, season, state)
@@ -318,7 +318,7 @@ def forward_sim_jax(eta, phi, omega, a_garch, b_garch, delta_beta_state_mean, rh
     delta_beta = z + delta_beta_state_mean[:, None, :] # shape: (modifier, season, state)
 
     # 3. Convert modifiers to daily values
-    delta_beta_daily = make_delta_beta_daily_batched(delta_beta=delta_beta, duration=modifier_length, t0=t0, t1=t1_max) # shape: (season, state, time)
+    delta_beta_daily = make_delta_beta_daily_batched(delta_beta=delta_beta, duration=modifier_length, t0=t0, t1=t1) # shape: (season, state, time)
 
     # 4. Run batched ODE
     H = simulate_all_jax(
@@ -330,7 +330,7 @@ def forward_sim_jax(eta, phi, omega, a_garch, b_garch, delta_beta_state_mean, rh
         gamma=gamma,
         population=population,
         t0=t0,
-        t1=t1_max,
+        t1=t1,
         ts=ts,
     )
 
