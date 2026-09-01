@@ -260,8 +260,6 @@ forecasting_RV_dims = {
     # modifier parameters
     "eta_raw": ["modifier_eta", "season", "state"],
     "delta_beta_raw": ["modifier", "state"],
-    "omega_season_raw": ["season"],
-    "omega": ["season", "state"],
 
     # modifier trajectories
     "z": ["modifier", "season", "state"],
@@ -334,16 +332,10 @@ def forecasting_model(data, weights, posterior_params, adj, args_static, n_state
     # AR(1) - GARCH(1,1)
     # ============================================================
 
+    omega = posterior_params['omega']
     phi = posterior_params['phi']
     a_garch = posterior_params['a_garch']
     b_garch = posterior_params['b_garch']
-
-    # Baseline noise
-    ### global (omega_global_mean)
-    ### state (omega_state)
-    ### season (omega_season_sd)
-    omega_season_raw = numpyro.sample("omega_season_raw", dist.Normal(0, 1).expand([n_seasons]))
-    omega = numpyro.deterministic("omega", jnp.exp(jnp.log(posterior_params['omega_global_mean']) + jnp.log(posterior_params['omega_state'])[None, :] + posterior_params['omega_season_sd'] * omega_season_raw[:, None]))
 
     # ===========================================================
     # Forward simulation
