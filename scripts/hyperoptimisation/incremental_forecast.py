@@ -36,15 +36,15 @@ from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
 abs_dir = os.path.dirname(__file__)
 
 # script iterates over combinations of trainings and seasons
-training_names = ['exclude_None-a_garch_0.0-b_garch_0.0_phi_0.5',]
+training_names = ['test',]
 seasons = ['2026-2027',]         
 
 # global parameters go here
 ## forecasting settings
 forecast_horizon = 4           # forecast sufficiently ahead to capture peaks
-n_preoptim = 500
+n_preoptim = 1000
 n_sample = 25
-n_tune = 5
+n_tune = 25
 sigma_grw = 0.01
 model_name = 'SCARCHhierarSIR'
 ## challenge parameters
@@ -66,8 +66,9 @@ for training_name, season in zip(training_names, seasons):
     with open(os.path.join(training_folder, "model_config.json"), "r") as f:
         params = json.load(f)
 
-    beta = 0.455 # params["beta"]
+    beta = params["beta"]
     gamma = params["gamma"]
+    n_basis = params["n_basis"]
     n_modifiers = params["n_modifiers"]
     modifier_length = params["modifier_length"]
     start_simulation = params["start_simulation"]
@@ -178,15 +179,13 @@ for training_name, season in zip(training_names, seasons):
                 'fR_season_sd':             hyperpars['fR_season_sd'].unique()[0],
                 'psi_2':                    hyperpars['psi_2'].unique()[0],
                 'phi':                      hyperpars['phi'].unique()[0],
-                'omega_global_mean':        hyperpars['omega_global_mean'].unique()[0],
-                'omega_season_sd':          hyperpars['omega_season_sd'].unique()[0],
+                'omega':                    hyperpars['omega'].unique()[0],
                 'a_garch':                  hyperpars['a_garch'].unique()[0],
                 'b_garch':                  hyperpars['b_garch'].unique()[0],
                 'alpha_inv':                hyperpars['alpha_inv'].values,
                 'rho_state':                hyperpars['rho_state'].values,
                 'fI_state':                 hyperpars['fI_state'].values,
                 'fR_state':                 hyperpars['fR_state'].values,
-                'omega_state':              hyperpars['omega_state'].values,
                 'delta_beta_state_mean':    np.transpose(hyperpars[[c for c in hyperpars.columns if c.startswith("delta_beta_state_mean_")]].to_numpy())
             }
 
@@ -261,10 +260,11 @@ for training_name, season in zip(training_names, seasons):
 
             kernel = NUTS(
                 forecasting_model,
-                step_size=0.001,
+                step_size=0.0002,
                 adapt_step_size=True,
                 max_tree_depth=12,
-                target_accept_prob=0.6,
+                target_accept_prob=0.9,
+                dense_mass=True,
                 init_strategy = init_to_value(values=map_params),
             )
 
@@ -293,7 +293,7 @@ for training_name, season in zip(training_names, seasons):
             trace.to_netcdf(os.path.join(output_folder, "trace.nc"))
 
             # Generate traceplots
-            variables2plot = ['rho', 'fI', 'fR', 'omega']
+            variables2plot = ['rho', 'fI', 'fR']
 
             # Save original traces
             os.makedirs(os.path.join(output_folder, 'traces'), exist_ok=True)
