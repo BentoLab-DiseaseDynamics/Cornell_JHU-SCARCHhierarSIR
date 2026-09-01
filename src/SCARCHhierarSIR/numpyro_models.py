@@ -52,8 +52,7 @@ training_RV_dims = {
     "delta_beta_spline_raw": ["spline_basis", "state"],
     "delta_beta_spline_coef": ["spline_basis", "state"],
     "delta_beta_state_mean": ["modifier", "state"],
-    "omega": ["season", "state"],
-
+    
     # modifier trajectories
     "z": ["modifier", "season", "state"],
     "delta_beta": ["modifier", "season", "state"],
