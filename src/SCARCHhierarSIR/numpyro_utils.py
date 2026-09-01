@@ -18,7 +18,7 @@ import optax
 import jax.numpy as jnp
 import numpyro.distributions as dist
 from numpyro.infer.util import initialize_model
-from numpyro.infer import init_to_median
+from numpyro.infer import init_to_median, init_to_sample
 
 
 #####################
@@ -55,12 +55,12 @@ def find_map(model, model_kwargs, n_preoptim=1000, lr=1e-2):
 
     rng_key = jax.random.PRNGKey(int(time.time()))
 
-    init_params_info, potential_fn, postprocess_fn, model_trace = (
+    init_params_info, potential_fn, postprocess_fn, _ = (
         initialize_model(
             rng_key,
             model,
             model_kwargs=model_kwargs,
-            init_strategy=init_to_median(),
+            init_strategy=init_to_sample()
         )
     )
 

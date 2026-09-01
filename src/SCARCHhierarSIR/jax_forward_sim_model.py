@@ -236,8 +236,8 @@ def ar_garch_scan(eta, phi, omega, a_garch, b_garch):
     phi : scalar
         AR(1) coefficient.
 
-    omega : jax.Array
-        Shape (season, state)
+    omega : scalar
+        Baseline noise (= sigma if a/b garch = 0)
 
     a_garch : scalar
         ARCH coefficient.
@@ -258,9 +258,9 @@ def ar_garch_scan(eta, phi, omega, a_garch, b_garch):
     """
 
     # Construct initial statees
-    z0 = jnp.zeros_like(omega)
-    eps0 = jnp.zeros_like(omega)
-    sigma20 = omega
+    z0 = jnp.zeros([eta.shape[1], eta.shape[2]])
+    eps0 = jnp.zeros([eta.shape[1], eta.shape[2]])
+    sigma20 = omega * jnp.ones_like(eps0)
 
     # Run the recursion
     def step(carry, eta_t):
@@ -315,10 +315,10 @@ def forward_sim_jax(eta, phi, omega, a_garch, b_garch, delta_beta_state_mean, rh
     z, sigma2, eps = ar_garch_scan(eta=eta, phi=phi, omega=omega, a_garch=a_garch, b_garch=b_garch) # shape: (modifier, season, state)
 
     # 2. Construct modifier
-    delta_beta = z + delta_beta_state_mean[:, None, :] # shape: (modifier, season, state)
+    delta_beta = z + delta_beta_state_mean[:, None, :]
 
-    # 3. Convert modifiers to daily values
-    delta_beta_daily = make_delta_beta_daily_batched(delta_beta=delta_beta, duration=modifier_length, t0=t0, t1=t1) # shape: (season, state, time)
+    # 3. Convert modifier to daily values
+    delta_beta_daily = make_delta_beta_daily_batched(delta_beta=delta_beta, duration=modifier_length, t0=t0, t1=t1)
 
     # 4. Run batched ODE
     H = simulate_all_jax(

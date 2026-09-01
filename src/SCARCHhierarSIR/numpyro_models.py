@@ -49,12 +49,9 @@ training_RV_dims = {
 
     # modifier parameters
     "eta_raw": ["modifier_eta", "season", "state"],
-    "delta_beta_raw": ["modifier", "state"],
+    "delta_beta_spline_raw": ["spline_basis", "state"],
+    "delta_beta_spline_coef": ["spline_basis", "state"],
     "delta_beta_state_mean": ["modifier", "state"],
-    "omega_state_raw": ["state"],
-    "omega_season_raw": ["season"],
-    "omega_state": ["state"],
-    "omega_season": ["season"],
     "omega": ["season", "state"],
 
     # modifier trajectories
@@ -73,7 +70,7 @@ training_RV_dims = {
 }
 
 
-def training_model(data, weights, adj, phi, a_garch, b_garch, args_static, n_states, n_seasons, n_modifiers):
+def training_model(data, weights, adj, phi, omega, a_garch, b_garch, spline_basis, args_static, n_states, n_seasons, n_modifiers):
     
     # ============================================================
     # Ascertainment: rho
@@ -136,7 +133,7 @@ def training_model(data, weights, adj, phi, a_garch, b_garch, args_static, n_sta
     # ============================================================
 
     # Global
-    logit_fR_global_mean = numpyro.sample("logit_fR_global_mean", dist.Normal(jax.scipy.special.logit(0.4), 1.0))
+    logit_fR_global_mean = numpyro.sample("logit_fR_global_mean", dist.Normal(jax.scipy.special.logit(0.37), 1.0))
     fR_global_mean = jax.nn.sigmoid(logit_fR_global_mean)
     numpyro.deterministic("fR_global_mean", fR_global_mean)
 
@@ -187,10 +184,16 @@ def training_model(data, weights, adj, phi, a_garch, b_garch, args_static, n_sta
     #  seasonal average modifiers per state (spatially correlated)
     # ============================================================
 
-    delta_beta_raw = numpyro.sample("delta_beta_raw", dist.Normal(0, 1).expand([n_modifiers, n_states]))
-    delta_beta_state_mean = (1/4) * jnp.einsum("ij,mj->mi", L_cov_modifiers, delta_beta_raw)
-    numpyro.deterministic("delta_beta_state_mean", delta_beta_state_mean)
+    n_basis = spline_basis.shape[1]
 
+    # Spatially correlated spline coefficients
+    delta_beta_spline_raw = numpyro.sample("delta_beta_spline_raw", dist.Laplace(1/3).expand([n_basis, n_states]))
+    delta_beta_spline_coef = jnp.einsum("ij,bj->bi", L_cov_modifiers, delta_beta_spline_raw)
+    numpyro.deterministic("delta_beta_spline_coef",  delta_beta_spline_coef)
+
+    # Evaluate spline on every modifier week
+    delta_beta_state_mean = jnp.einsum("db,bs->ds", spline_basis, delta_beta_spline_coef)
+    numpyro.deterministic("delta_beta_state_mean", delta_beta_state_mean)
 
     # ============================================================
     # AR(1) - GARCH(1,1)
@@ -199,34 +202,7 @@ def training_model(data, weights, adj, phi, a_garch, b_garch, args_static, n_sta
     numpyro.deterministic("phi", phi)
     numpyro.deterministic("a_garch", a_garch)
     numpyro.deterministic("b_garch", b_garch)
-
-    # omega
-
-    ## global
-    omega_global_mean_shrinkage = numpyro.sample("omega_global_mean_shrinkage", dist.HalfNormal(0.05/3))
-    log_omega_global_mean = numpyro.sample("log_omega_global_mean", dist.Normal(jnp.log(omega_global_mean_shrinkage), 1/5))
-    omega_global_mean = jnp.exp(log_omega_global_mean)
-    numpyro.deterministic("omega_global_mean", omega_global_mean)
-
-    ## state
-    omega_state_sd = numpyro.sample("omega_state_sd", dist.HalfNormal(1/5))
-    omega_state_raw = numpyro.sample("omega_state_raw", dist.Normal(0, 1).expand([n_states]))
-    numpyro.deterministic("omega_state", jnp.exp(omega_state_sd * omega_state_raw))
-
-    ## season
-    omega_season_sd = numpyro.sample("omega_season_sd", dist.HalfNormal(1/5))
-    omega_season_raw = numpyro.sample("omega_season_raw", dist.Normal(0, 1).expand([n_seasons]))
-    numpyro.deterministic("omega_season", jnp.exp(omega_season_sd * omega_season_raw))
-
-    ## additive hierarchy
-    log_omega = (
-        log_omega_global_mean
-        + omega_state_sd * omega_state_raw[None, :]
-        + omega_season_sd * omega_season_raw[:, None]
-    )
-
-    omega = numpyro.deterministic("omega", jnp.exp(log_omega))
-
+    omega = numpyro.deterministic("omega", omega)
 
     # ============================================================
     # Forward simulation
@@ -246,10 +222,10 @@ def training_model(data, weights, adj, phi, a_garch, b_garch, args_static, n_sta
     )
 
     H = numpyro.deterministic("H", jax.nn.softplus(H_raw)) # at sample 0 --> H raw can become very negative --> underflows softplus --> H becomes zero --> negative binomial becomes nan
-    numpyro.deterministic("z", z_raw,)
-    numpyro.deterministic("delta_beta", z_raw + delta_beta_state_mean[:, None, :])
+    numpyro.deterministic("z", z_raw)
     numpyro.deterministic("sigma2", sigma2_raw)
     numpyro.deterministic("eps", eps_raw)
+    numpyro.deterministic("delta_beta", z_raw + delta_beta_state_mean[:, None, :])
 
 
     # ============================================================

@@ -16,6 +16,7 @@ import json
 import time
 import numpy as np
 import pandas as pd
+from patsy import dmatrix
 import multiprocessing as mp
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -42,9 +43,11 @@ abs_dir = os.path.dirname(__file__)
 ## model-structural
 a_garch = 0.0
 b_garch = 0.0
+omega = 0.005
 phi = 0.5
 beta = 0.455
 gamma = 1/3.5
+n_basis = 18
 n_modifiers = 32
 modifier_length = 7
 start_simulation = 0 # (October 1)
@@ -55,17 +58,17 @@ clustering_name = 'all'
 n_observations = 35             # run until start of May
 seasons = ['2023-2024', '2024-2025', '2025-2026']
 ## sampling effort
-n_sample = 75
-n_burn = 25
+n_sample = 3
+n_burn = 3
 training_name = f'test'
-n_preoptim = 1000
+n_preoptim = 5000 
 ## use previous sampling
 cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
 
 ## save model-structural parameters and training metadata
 output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
 os.makedirs(output_folder, exist_ok=True)
-params = {"beta": 0.455, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "modifier_length": modifier_length, "start_simulation": start_simulation,
+params = {"beta": 0.455, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "n_basis": n_basis, "modifier_length": modifier_length, "start_simulation": start_simulation,
             "modifier_ref_month": modifier_ref_month, "modifier_ref_day": modifier_ref_day, 'clustering_name': clustering_name,
             "observations": n_observations, 'seasons': seasons}
 with open(os.path.join(output_folder, "model_config.json"), "w") as f:
@@ -76,6 +79,7 @@ with open(os.path.join(output_folder, "model_config.json"), "w") as f:
 n_seasons = len(seasons)
 start_calibrations = [datetime(int(season[0:4]),modifier_ref_month, modifier_ref_day) + timedelta(days=start_simulation) for season in seasons] # start calibration at simulation start
 modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) for season in seasons]
+
 
 # Get the clusters
 # ~~~~~~~~~~~~~~~~
@@ -117,11 +121,12 @@ for cluster_idx in cluster_indices:
 
     data = impute_outliers(data)
 
-
     # Build numpyro model
     # ~~~~~~~~~~~~~~~~~~~
 
     print('\ncompiling numpyro model\n')
+
+    spline_basis = jnp.asarray(dmatrix(f"bs(x, df={n_basis-1}, degree=3, include_intercept=False)", {"x": np.arange(n_modifiers)}, return_type="dataframe").to_numpy())
 
     args_static = (start_simulation, max(ts[:,-1]), modifier_length, jnp.full((n_seasons, n_states), beta), gamma, jnp.asarray(demo), ts)
 
@@ -136,7 +141,8 @@ for cluster_idx in cluster_indices:
         "state": state_fips_index['abbreviation_state'].values,
         "season": seasons,
         "modifier": np.arange(n_modifiers),
-        "modifier_eta": np.arange(n_modifiers-1)
+        "modifier_eta": np.arange(n_modifiers-1),
+        "spline_basis": np.arange(n_basis)
     }
 
     # construct its arguments
@@ -145,8 +151,10 @@ for cluster_idx in cluster_indices:
         weights=jnp.asarray(weights),
         adj=jnp.asarray(adj),
         phi=phi,
+        omega=omega,
         a_garch=a_garch,
         b_garch=b_garch,
+        spline_basis=spline_basis,
         args_static=args_static,
         n_states=n_states,
         n_seasons=n_seasons,
@@ -163,8 +171,6 @@ for cluster_idx in cluster_indices:
     # run optimisation
     map_params = find_map(training_model, model_kwargs, n_preoptim)
 
-    print(jnp.exp(map_params['log_fI_global_mean']))
-
     # visualise the result
     out = map_params['H']
     for s in range(n_states):
@@ -178,8 +184,6 @@ for cluster_idx in cluster_indices:
         plt.savefig(os.path.join(cluster_output_folder,f'initial-optim/state_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
         plt.close(fig)
 
-    import sys
-    sys.exit()
 
     # Sample numpyro model
     # ~~~~~~~~~~~~~~~~~~~~
@@ -191,9 +195,10 @@ for cluster_idx in cluster_indices:
 
     kernel = NUTS(
         training_model,
-        step_size=0.0001,
-        adapt_step_size=False,
-        max_tree_depth=12,
+        step_size=0.0005,
+        adapt_step_size=True,
+        max_tree_depth=10,
+        dense_mass=True,
         init_strategy = init_to_value(values=map_params),
     )
 
@@ -243,9 +248,7 @@ for cluster_idx in cluster_indices:
                     'fI_global_mean', 'fI_state_sd', 'fI_state', 'fI_season_sd', 'fI_season', 'fI',         # fI
                     'fR_global_mean', 'fR_state_sd', 'fR_state', 'fR_season_sd', 'fR_season', 'fR',         # fR
                     'psi_2', 'psi_1',                                                                       # spatial correlation strength
-                    'phi',                                                                                  # AR 
-                    'omega_global_mean', 'omega_state_sd', 'omega_state', 'omega_season_sd', 'omega_season', 'omega', # GARCH(1,0) parameters
-                    'omega_global_mean_shrinkage',
+                    'phi', 'omega',                                                                         # AR - GARCH
                     'a_garch', 'b_garch',
                     ]
 
@@ -282,71 +285,6 @@ for cluster_idx in cluster_indices:
 
     print('\nmaking posterior predictive visualisations\n')
 
-    # pairplots of alpha_inv and omega per U.S. state or territory
-    os.makedirs(os.path.join(cluster_output_folder,'traces/pairplots'), exist_ok=True)
-    x = trace.posterior['alpha_inv'].stack(sample=("chain", "draw"))
-    y = trace.posterior['omega_state'].stack(sample=("chain", "draw"))
-    states = x["state"].values
-    for state in states:
-        fig,ax=plt.subplots(figsize=(8.3/2, 11.7/4))
-        ax.scatter(x.sel(state=state), y.sel(state=state), marker='o', color='black', alpha=0.05)
-        # add regression
-        if a_garch is None:
-            res = linregress(x.sel(state=state), y.sel(state=state))
-            xx = np.array([x.sel(state=state).min(), x.sel(state=state).max()])
-            ax.plot(xx, res.intercept + res.slope * xx, color="red")
-            text = (f"$R^2$ = {res.rvalue**2:.3f}")
-            ax.text(0.05, 0.95, text, transform=ax.transAxes, ha="left", va="top", fontsize=5, bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
-        ax.set_xlabel(r'$1/\alpha_i$')
-        ax.set_ylabel(r'$\omega_i$')
-        ax.set_title(f'{state}')
-        plt.tight_layout()
-        plt.savefig(os.path.join(cluster_output_folder,f'traces/pairplots/pairplot-alpha_omega-{state}.pdf'))
-        plt.close()
-
-
-    # pairplot of a_garch, omega_global and phi
-    x1 = trace.posterior['a_garch'].stack(sample=("chain", "draw"))
-    x2 = trace.posterior['omega_global_mean'].stack(sample=("chain", "draw"))
-    x3 = trace.posterior['phi'].stack(sample=("chain", "draw"))
-
-    fig,ax=plt.subplots(figsize=(8.3, 11.7/2), nrows=2, ncols=2)
-
-    ax[0,0].scatter(x1, x3, marker='o', color='black', alpha=0.05)
-    if a_garch is None:
-        res = linregress(x1, x3)
-        xx = np.array([x1.min(), x1.max()])
-        ax[0,0].plot(xx, res.intercept + res.slope * xx, color="red")
-        text = (f"$R^2$ = {res.rvalue**2:.3f}")
-        ax[0,0].text(0.05, 0.95, text, transform=ax[0,0].transAxes, ha="left", va="top", fontsize=12, bbox=dict(boxstyle="round", facecolor="white", alpha=1))
-    ax[0,0].set_ylabel(r'$\phi$')
-
-    ax[1,0].scatter(x1, x2, marker='o', color='black', alpha=0.05)
-    if a_garch is None:
-        res = linregress(x1, x2)
-        xx = np.array([x1.min(), x1.max()])
-        ax[1,0].plot(xx, res.intercept + res.slope * xx, color="red")
-        text = (f"$R^2$ = {res.rvalue**2:.3f}")
-        ax[1,0].text(0.05, 0.95, text, transform=ax[1,0].transAxes, ha="left", va="top", fontsize=12, bbox=dict(boxstyle="round", facecolor="white", alpha=1))
-    ax[1,0].set_xlabel(r'$\alpha_{GARCH}$')
-    ax[1,0].set_ylabel(r'$\omega_{global}$')
-
-    ax[1,1].scatter(x3, x2, marker='o', color='black', alpha=0.05)
-    if a_garch is None:
-        res = linregress(x3, x2)
-        xx = np.array([x3.min(), x3.max()])
-        ax[1,1].plot(xx, res.intercept + res.slope * xx, color="red")
-        text = (f"$R^2$ = {res.rvalue**2:.3f}")
-        ax[1,1].text(0.05, 0.95, text, transform=ax[1,1].transAxes, ha="left", va="top", fontsize=12, bbox=dict(boxstyle="round", facecolor="white", alpha=1))
-    ax[1,1].set_xlabel(r'$\phi$')
-
-    fig.delaxes(ax[0,1])
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(cluster_output_folder,f'traces/pairplots/pairplot-a_garch-omega_global_mean-phi.pdf'))
-    plt.close()
-    
-
     # forestplot of alpha_inv
     fig,ax=plt.subplots(figsize=(8.3/3*2, 11.7))
     samples = trace.posterior['alpha_inv'].stack(sample=("chain", "draw"))
@@ -381,12 +319,12 @@ for cluster_idx in cluster_indices:
 
 
     # visualise forest plots of state and season effect sizes
-    labels_params = [r'$\rho$', r'$f_I$', r'$f_R$', r'$\omega$']
-    state_params = ["rho_state", "fI_state", "fR_state", "omega_state"]
-    season_params = ["rho_season", "fI_season", "fR_season", "omega_season"]
-    global_params = ["rho_global_mean", "fI_global_mean", "fR_global_mean", "omega_global_mean"]
-    params = ['rho', 'fI', 'fR', 'omega']
-    effect_type = ['Multiplicative', 'Multiplicative', 'Odds-ratio', 'Multiplicative']
+    labels_params = [r'$\rho$', r'$f_I$', r'$f_R$']
+    state_params = ["rho_state", "fI_state", "fR_state"]
+    season_params = ["rho_season", "fI_season", "fR_season"]
+    global_params = ["rho_global_mean", "fI_global_mean", "fR_global_mean"]
+    params = ['rho', 'fI', 'fR']
+    effect_type = ['Multiplicative', 'Multiplicative', 'Odds-ratio']
 
     for n, p_state, p_season, g, p, e in zip(labels_params, state_params, season_params, global_params, params, effect_type):
 
@@ -497,7 +435,7 @@ for cluster_idx in cluster_indices:
         # decorations
         fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
         ax.set_ylabel(r'$\Delta \beta_t$')
-        ax.set_ylim([0.65, 1.35])
+        ax.set_ylim([0.5, 1.5])
         ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b'))
         plt.savefig(os.path.join(cluster_output_folder,f'modifiers/modifiers_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
@@ -562,8 +500,7 @@ for cluster_idx in cluster_indices:
         "psi_1",    
         "psi_2",
         "phi",
-        "omega_global_mean",
-        "omega_season_sd",
+        "omega",
         "a_garch",
         "b_garch"
     ]
@@ -576,7 +513,6 @@ for cluster_idx in cluster_indices:
         "rho_state",
         "fI_state",
         "fR_state",
-        "omega_state",
     ]
     for p in state_params:
         df[p] = med[p].values
