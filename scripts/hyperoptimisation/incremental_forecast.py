@@ -263,7 +263,7 @@ for training_name, season in zip(training_names, seasons):
                 step_size=0.0002,
                 adapt_step_size=True,
                 max_tree_depth=12,
-                target_accept_prob=0.9,
+                target_accept_prob=0.98,
                 dense_mass=True,
                 init_strategy = init_to_value(values=map_params),
             )

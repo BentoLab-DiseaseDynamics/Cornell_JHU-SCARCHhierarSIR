@@ -44,7 +44,7 @@ training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarc
 challenge_start_reference_date = datetime(2025, 10, 18) # must be a saturday
 challenge_end_reference_date = datetime(2026, 5, 30)    # must be the last saturday of may
 season = '2025-2026'            
-n_observations = 17             # use all data available in the forecast season
+n_observations = 25             # use all data available in the forecast season
 forecast_horizon = 20           # forecast sufficiently ahead to capture peaks
 n_preoptim = 1000
 n_sample = 25
@@ -220,7 +220,7 @@ for cluster_idx in cluster_indices:
         step_size=0.0002,
         adapt_step_size=True,
         max_tree_depth=12,
-        target_accept_prob=0.9,
+        target_accept_prob=0.98,
         dense_mass=True,
         init_strategy = init_to_value(values=map_params),
     )
