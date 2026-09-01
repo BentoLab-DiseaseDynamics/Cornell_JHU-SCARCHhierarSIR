@@ -565,7 +565,7 @@ def simout_to_hubverse_admissions(simout: arviz.InferenceData,
 
 from pygam import LinearGAM, s
 
-def impute_outliers(data, state_fips_index):
+def impute_outliers(data):
     """
     Detect and impute temporal outliers in seasonal state-level count data.
 
@@ -591,7 +591,7 @@ def impute_outliers(data, state_fips_index):
         same shape as ``data``.
     """
 
-    data = data/7
+    data = data/7   # works best on scaled data
 
     for season in range(data.shape[0]):
         for _, state in enumerate(range(data.shape[1])):
@@ -612,19 +612,19 @@ def impute_outliers(data, state_fips_index):
 
             data[season, state, :] = np.expm1(y)
 
-            if state_fips_index.iloc[state]['abbreviation_state'] == 'PR':
+            # if state_fips_index.iloc[state]['abbreviation_state'] == 'DC':
 
-                import matplotlib.pyplot as plt
-                fig,ax=plt.subplots()
+            #     import matplotlib.pyplot as plt
+            #     fig,ax=plt.subplots()
 
-                ax.fill_between(x, np.expm1(confint[:,0]), np.expm1(confint[:,1]), color='red', alpha=0.2)
-                ax.plot(x, np.expm1(trend), color='red')
+            #     ax.fill_between(x, np.expm1(confint[:,0]), np.expm1(confint[:,1]), color='red', alpha=0.2)
+            #     ax.plot(x, np.expm1(trend), color='red')
 
-                ax.plot(x, d, marker='o', color='black')
+            #     ax.plot(x, d, marker='o', color='black')
 
-                ax.scatter(x[outliers], d[outliers], color='red', marker='x', s=100)
+            #     ax.scatter(x[outliers], d[outliers], color='red', marker='x', s=100)
 
-                plt.show()
-                plt.close()
+            #     plt.show()
+            #     plt.close()
 
     return data

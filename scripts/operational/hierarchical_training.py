@@ -121,6 +121,7 @@ for cluster_idx in cluster_indices:
 
     data = impute_outliers(data)
 
+
     # Build numpyro model
     # ~~~~~~~~~~~~~~~~~~~
 
