@@ -44,7 +44,7 @@ training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarc
 challenge_start_reference_date = datetime(2025, 10, 18) # must be a saturday
 challenge_end_reference_date = datetime(2026, 5, 30)    # must be the last saturday of may
 season = '2025-2026'            
-n_observations = 25             # use all data available in the forecast season
+n_observations = 5             # use all data available in the forecast season
 forecast_horizon = 20           # forecast sufficiently ahead to capture peaks
 n_preoptim = 1000
 n_sample = 25
@@ -176,6 +176,7 @@ for cluster_idx in cluster_indices:
         weights=jnp.asarray(weights),
         posterior_params=posterior_params,
         adj=jnp.asarray(adj),
+        sigma_grw=0.01,
         args_static=args_static,
         n_states=n_states,
         n_seasons=n_seasons,

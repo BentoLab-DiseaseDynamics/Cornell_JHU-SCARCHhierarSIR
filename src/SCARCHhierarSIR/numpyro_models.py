@@ -275,7 +275,7 @@ forecasting_RV_dims = {
     "pred": ["state", "horizon_forecast"]
 }
 
-def forecasting_model(data, weights, posterior_params, adj, args_static, n_states, n_seasons, n_modifiers, n_observations):
+def forecasting_model(data, weights, posterior_params, adj, sigma_grw, args_static, n_states, n_seasons, n_modifiers, n_observations):
 
     # ============================================================
     # SIR model parameters
@@ -371,11 +371,25 @@ def forecasting_model(data, weights, posterior_params, adj, args_static, n_state
     else:
         numpyro.sample("obs", WeightedNB(mu=H[:,:,:n_observations], alpha=alpha, weights=weights), obs=data[:,:,:n_observations])
 
-    # ============================================================
-    # Forecast model
-    # ============================================================
+    # ======================================================================
+    # Forecast model (model output + NB observation noise + GRW white noise)
+    # ======================================================================
 
     if data is None:
-        numpyro.sample("pred", dist.NegativeBinomial2(mean=H[:, :, n_observations:], concentration=alpha[None, :, None]), obs=None)
+
+        # Geometric random walk innovations
+        n_forecast = H.shape[2] - n_observations
+        grw_innov = numpyro.sample("grw_innov", dist.Normal(0.0, sigma_grw).expand([n_states, n_forecast]))
+
+        # Multiplicative GRW adjustment
+        grw_log_scale = jnp.cumsum(grw_innov, axis=1)
+        H_future_rw = H[:, :, n_observations:] * jnp.exp(grw_log_scale[None, :, :])
+
+        # Forecast observation model
+        numpyro.sample("pred", dist.NegativeBinomial2(mean=H_future_rw, concentration=alpha[None, :, None]), obs=None)
+
+
+    #if data is None:
+    #    numpyro.sample("pred", dist.NegativeBinomial2(mean=H[:, :, n_observations:], concentration=alpha[None, :, None]), obs=None)
 
     pass
