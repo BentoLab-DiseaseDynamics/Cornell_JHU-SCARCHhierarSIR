@@ -172,8 +172,17 @@ dmypy.json
 *.bbl
 *.blg
 
-## Calibration data
-data/interim/calibration/forecast/exclude_None-*/reference_date-*
+## Training
 data/interim/calibration/hierarchical-training/exclude_None-*
 data/interim/calibration/hierarchical-training/exclude_None-/cluster_*
+
+## Forecasting
+data/interim/calibration/forecast/exclude_None-*/reference_date-*
+
+## Hyperoptimisation
+data/interim/calibration/incremental_forecast/*/*/
+!data/interim/calibration/incremental_forecast/*/*/
+data/interim/calibration/incremental_forecast/*/*/*/**
+!data/interim/calibration/incremental_forecast/*/*/*.csv
+
 
