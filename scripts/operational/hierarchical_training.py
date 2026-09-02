@@ -197,8 +197,9 @@ for cluster_idx in cluster_indices:
     kernel = NUTS(
         training_model,
         step_size=0.0002,
-        adapt_step_size=False,
+        adapt_step_size=True,
         max_tree_depth=12,
+        target_accept_prob=0.8,
         dense_mass=True,
         init_strategy = init_to_value(values=map_params),
     )
