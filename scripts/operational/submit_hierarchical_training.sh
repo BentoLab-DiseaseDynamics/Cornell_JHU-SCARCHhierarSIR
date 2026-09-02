@@ -4,7 +4,7 @@
 #SBATCH --partition=cac_cpu
 #SBATCH --time=24:00:00
 #SBATCH --qos=longrun
-#SBATCH -c 16
+#SBATCH -c 8
 
 # Submit as follows:
 # sbatch submit_hierarchical_training.sh
