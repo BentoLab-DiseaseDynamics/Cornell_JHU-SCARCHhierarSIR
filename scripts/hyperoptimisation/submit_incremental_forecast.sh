@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=my_gpu_job
+#SBATCH --job-name=forecast
 #SBATCH --account=arb24_0001
 #SBATCH --partition=cac_cpu
 #SBATCH --time=24:00:00
@@ -19,7 +19,7 @@ unset PYTHONHOME
 unset PYTHONPATH
 
 # Run your Python script
-python incremental_forecast.py
+python -u incremental_forecast.py
 
 # Deactivate the virtual environment after the run
 conda deactivate

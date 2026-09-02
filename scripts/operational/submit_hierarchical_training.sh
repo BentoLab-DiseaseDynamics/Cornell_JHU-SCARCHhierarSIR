@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=my_gpu_job
+#SBATCH --job-name=training
 #SBATCH --account=arb24_0001
 #SBATCH --partition=cac_cpu
 #SBATCH --time=24:00:00
@@ -19,7 +19,7 @@ unset PYTHONHOME
 unset PYTHONPATH
 
 # Run your Python script
-python hierarchical_training.py
+python -u hierarchical_training.py
 
 # Deactivate the virtual environment after the run
 conda deactivate
