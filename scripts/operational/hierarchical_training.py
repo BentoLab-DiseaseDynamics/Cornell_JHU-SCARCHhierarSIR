@@ -46,14 +46,14 @@ phi = 0.5
 beta = 0.455
 gamma = 1/3.5
 n_basis = 20
-n_modifiers = 36
+n_modifiers = 37
 modifier_length = 7
 start_simulation = 0 # (Sept 1)
 modifier_ref_month = 9
 modifier_ref_day = 1
 clustering_name = 'all'
 ## temporal extent of training
-n_observations = 35             # run until start of June
+n_observations = 36             # run until start of June
 seasons = ['2023-2024', '2024-2025', '2025-2026']
 ## sampling effort
 n_sample = 150
