@@ -1,5 +1,4 @@
 import jax
-import numpy as np
 import jax.numpy as jnp
 from jax.scipy.signal import convolve
 import diffrax

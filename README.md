@@ -1,6 +1,6 @@
 # Cornell_JHU-SCARCHhierarSIR
 
-An SIR model wrapped in a Bayesian hierarchical inference framework for short-term infectious disease forecasting. Implemented using `pyMC v6` and `arviz v1`. Successor to Cornell_JHU-hierarchSIR.
+An SIR model wrapped in a Bayesian hierarchical inference framework for short-term infectious disease forecasting. Forward simulation model integrated using `diffrax`, probablistic model implemented using `NumPyro`. Successor to Cornell_JHU-hierarchSIR.
 
 ## Installation (local)
 
@@ -18,13 +18,13 @@ Setup/update the `environment`: All dependencies needed to run the scripts are c
 
 ```
 conda env create -f SCARCHhierarSIR_env.yml
-conda activate BENTOLAB-SCARCH_HIERARSIR
+conda activate SCARCH_HIERARSIR
 ```
 
 or alternatively, to update the environment (needed after adding a dependency),
 
 ```
-conda activate BENTOLAB-SCARCH_HIERARSIR
+conda activate SCARCH_HIERARSIR
 conda env update -f SCARCHhierarSIR_env.yml --prune
 ```
 
@@ -33,7 +33,7 @@ conda env update -f SCARCHhierarSIR_env.yml --prune
 Install the `SCARCHhierarSIR` Python package inside the conda environment using,
 
 ```
-conda activate BENTOLAB-SCARCH_HIERARSIR
+conda activate SCARCH_HIERARSIR
 pip install -e . --force-reinstall
 ```
 
