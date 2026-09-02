@@ -38,17 +38,18 @@ abs_dir = os.path.dirname(__file__)
 
 # global parameters go here
 ## training metadata
-training_name = 'test'
+training_name = 'exclude_None-a_garch_0.0-phi_0.5-omega_0.005_1'
 training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
 ## forecasting settings
 challenge_start_reference_date = datetime(2025, 10, 18) # must be a saturday
 challenge_end_reference_date = datetime(2026, 5, 30)    # must be the last saturday of may
 season = '2025-2026'            
-n_observations = 5             # use all data available in the forecast season
+n_observations = 2             # use all data available in the forecast season
 forecast_horizon = 20           # forecast sufficiently ahead to capture peaks
 n_preoptim = 1000
-n_sample = 25
-n_tune = 25
+n_sample = 100
+n_tune = 100
+sigma_grw = 0.001
 
 ## load the model-structural parameters and training metadata
 with open(os.path.join(training_folder, "model_config.json"), "r") as f:
@@ -176,7 +177,7 @@ for cluster_idx in cluster_indices:
         weights=jnp.asarray(weights),
         posterior_params=posterior_params,
         adj=jnp.asarray(adj),
-        sigma_grw=0.01,
+        sigma_grw=sigma_grw,
         args_static=args_static,
         n_states=n_states,
         n_seasons=n_seasons,
