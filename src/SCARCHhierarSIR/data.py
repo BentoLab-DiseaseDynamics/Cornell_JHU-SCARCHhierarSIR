@@ -627,4 +627,4 @@ def impute_outliers(data):
             #     plt.show()
             #     plt.close()
 
-    return data
+    return data * 7
