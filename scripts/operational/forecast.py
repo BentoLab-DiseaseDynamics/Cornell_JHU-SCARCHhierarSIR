@@ -47,8 +47,8 @@ season = '2025-2026'
 n_observations = 4            # use all data available in the forecast season
 forecast_horizon = 20           # forecast sufficiently ahead to capture peaks
 n_preoptim = 1000
-n_sample = 100
-n_tune = 100
+n_sample = 10
+n_tune = 10
 sigma_grw = 0.001
 
 ## load the model-structural parameters and training metadata
