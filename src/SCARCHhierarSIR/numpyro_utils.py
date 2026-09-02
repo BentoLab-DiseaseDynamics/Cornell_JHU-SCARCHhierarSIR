@@ -12,6 +12,7 @@ Licensed under CC BY-NC-SA 4.0
 ## Dependencies ##
 ##################
 
+import sys
 import time
 import jax
 import optax
@@ -105,6 +106,7 @@ def find_map(model, model_kwargs, n_preoptim=1000, lr=1e-2):
 
         if i % 100 == 0:
             print(i, float(pe))
+            sys.stdout.flush()
 
     # --------------------------------------------------
     # Transform back to constrained space

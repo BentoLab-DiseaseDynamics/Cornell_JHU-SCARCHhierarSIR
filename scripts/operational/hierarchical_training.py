@@ -8,7 +8,7 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
-n_chains = 8
+n_chains = 4
 
 # standard python libraries
 import os
@@ -17,10 +17,8 @@ import time
 import numpy as np
 import pandas as pd
 from patsy import dmatrix
-import multiprocessing as mp
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from scipy.stats import linregress
 from datetime import datetime, timedelta
 # jax and numpyro
 import jax
@@ -58,9 +56,10 @@ clustering_name = 'all'
 n_observations = 35             # run until start of May
 seasons = ['2023-2024', '2024-2025', '2025-2026']
 ## sampling effort
-n_sample = 250
+n_sample = 150
 n_burn = 150
-training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}'
+target_accept = 0.8
+training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
 n_preoptim = 25000
 ## use previous sampling
 cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
@@ -199,7 +198,7 @@ for cluster_idx in cluster_indices:
         step_size=0.0002,
         adapt_step_size=True,
         max_tree_depth=12,
-        target_accept_prob=0.8,
+        target_accept_prob=target_accept,
         dense_mass=True,
         init_strategy = init_to_value(values=map_params),
     )
