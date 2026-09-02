@@ -17,10 +17,8 @@ import time
 import numpy as np
 import pandas as pd
 from patsy import dmatrix
-import multiprocessing as mp
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from scipy.stats import linregress
 from datetime import datetime, timedelta
 # jax and numpyro
 import jax
