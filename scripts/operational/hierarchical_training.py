@@ -45,22 +45,22 @@ omega = 0.005
 phi = 0.5
 beta = 0.455
 gamma = 1/3.5
-n_basis = 18
-n_modifiers = 32
+n_basis = 21
+n_modifiers = 39
 modifier_length = 7
-start_simulation = 0 # (October 1)
-modifier_ref_month = 10
+start_simulation = 0 # (Sept 1)
+modifier_ref_month = 9
 modifier_ref_day = 1
 clustering_name = 'all'
 ## temporal extent of training
-n_observations = 35             # run until start of May
+n_observations = 39             # run until start of May
 seasons = ['2023-2024', '2024-2025', '2025-2026']
 ## sampling effort
 n_sample = 150
 n_burn = 150
 target_accept = 0.8
-training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
 n_preoptim = 25000
+training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
 ## use previous sampling
 cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
 
@@ -420,7 +420,7 @@ for cluster_idx in cluster_indices:
     # Visualise across-season modifier trend + within-season median per state
     os.makedirs(os.path.join(cluster_output_folder,'modifiers'), exist_ok=True)
     # make dates
-    x = pd.date_range(start=datetime(2000,10,15), periods=n_modifiers, freq='W')
+    x = pd.date_range(start=datetime(2000,modifier_ref_month,modifier_ref_day), periods=n_modifiers, freq='W')
     for s in range(n_states):
         fig,ax=plt.subplots(figsize=(8.3, 11.7/5))
         # average trend
