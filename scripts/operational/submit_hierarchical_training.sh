@@ -2,7 +2,7 @@
 #SBATCH --job-name=training
 #SBATCH --account=arb24_0001
 #SBATCH --partition=cac_cpu
-#SBATCH --time=24:00:00
+#SBATCH --time=48:00:00
 #SBATCH --qos=longrun
 #SBATCH -c 8
 
