@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "SCARCHhierarSIR"
-version = "26_27.0.0"
+version = "26.0.0"
 description = "An SIR Bayesian hierarchical influenza model"
 authors = [{name = "Dr. Tijs W. Alleman", email = "twa27@cornell.edu"}]
 license = "CC-BY-NC-SA-4.0"
