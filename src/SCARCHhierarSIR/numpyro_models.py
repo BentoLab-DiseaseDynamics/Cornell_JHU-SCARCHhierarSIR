@@ -132,7 +132,7 @@ def training_model(data, weights, adj, phi, omega, a_garch, b_garch, spline_basi
     # ============================================================
 
     # Global
-    logit_fR_global_mean = numpyro.sample("logit_fR_global_mean", dist.Normal(jax.scipy.special.logit(0.39), 1.0))
+    logit_fR_global_mean = numpyro.sample("logit_fR_global_mean", dist.Normal(jax.scipy.special.logit(0.40), 1.0))
     fR_global_mean = jax.nn.sigmoid(logit_fR_global_mean)
     numpyro.deterministic("fR_global_mean", fR_global_mean)
 
