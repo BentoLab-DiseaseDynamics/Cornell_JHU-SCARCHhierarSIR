@@ -41,8 +41,8 @@ abs_dir = os.path.dirname(__file__)
 training_name = 'exclude_None-a_garch_0.0-phi_0.5-omega_0.005'
 training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
 ## forecasting settings
-challenge_start_reference_date = datetime(2025, 10, 18) # must be a saturday
-challenge_end_reference_date = datetime(2026, 5, 30)    # must be the last saturday of may
+challenge_start_reference_date = datetime(2026, 10, 10) # must be a saturday
+challenge_end_reference_date = datetime(2027, 5, 29)    # must be the last saturday of may
 season = '2025-2026'            
 n_observations = 4            # use all data available in the forecast season
 forecast_horizon = 20           # forecast sufficiently ahead to capture peaks
