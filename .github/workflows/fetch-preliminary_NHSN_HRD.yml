@@ -20,7 +20,7 @@ jobs:
       - name: Set up conda environment
         uses: conda-incubator/setup-miniconda@v4
         with:
-          activate-environment: BENTOLAB-SCARCH_HIERARSIR
+          activate-environment: SCARCH_HIERARSIR
           environment-file: SCARCHhierarSIR_env.yml  
 
       - name: Fetch NHSN HRD preliminary data (with retries and sleep)

@@ -1,14 +1,13 @@
-name: BENTOLAB-SCARCH_HIERARSIR
+name: SCARCH_HIERARSIR
 channels:
   - conda-forge
 dependencies:
-  - python=3.13
   - pip
+  - python=3.14
+  - numpyro=0.21.0
   - arviz>1
-  - pytensor
+  - diffrax=0.7.2    
   - jax
-  - diffrax  
-  - numpyro
   - optax
   - numpy
   - pandas
@@ -17,3 +16,4 @@ dependencies:
   - fastparquet
   - netcdf4
   - pygam
+  - patsy

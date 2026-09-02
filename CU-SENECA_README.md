@@ -98,7 +98,7 @@ conda env create -f SCARCHhierarSIR_env.yml
 
 ```bash
 source /opt/ohpc/pub/software/anaconda3/etc/profile.d/conda.sh
-conda activate BENTOLAB-SCARCH_HIERARSIR
+conda activate SCARCH_HIERARSIR
 unset PYTHONHOME
 unset PYTHONPATH
 pip install -e .

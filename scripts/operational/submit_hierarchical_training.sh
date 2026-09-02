@@ -14,7 +14,7 @@ module load anaconda3
 
 # Activate the virtual environment
 source /opt/ohpc/pub/software/anaconda3/etc/profile.d/conda.sh
-conda activate BENTOLAB-SCARCH_HIERARSIR
+conda activate SCARCH_HIERARSIR
 unset PYTHONHOME
 unset PYTHONPATH
 
