@@ -60,8 +60,8 @@ seasons = ['2023-2024', '2024-2025', '2025-2026']
 ## sampling effort
 n_sample = 250
 n_burn = 150
-training_name = f'test'
-n_preoptim = 10000
+training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}'
+n_preoptim = 25000
 ## use previous sampling
 cont_sampling = False # To continue sampling, the number of chains and the observed data must match!
 
