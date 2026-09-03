@@ -8,93 +8,76 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
-n_chains = 8
+# wrapper 
+def main():
 
+    n_chains = 8
 
-# standard python libraries
-import os
-import time
-import json
-import numpy as np
-import pandas as pd
-import xarray as xr
-import multiprocessing as mp
-import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
-# jax and diffrax
-import jax
-jax.config.update("jax_enable_x64", True)
-import jax.numpy as jnp
-from numpyro.infer import NUTS, MCMC, Predictive, init_to_value
-import numpyro
-numpyro.set_host_device_count(n_chains)
-import arviz # must be after numpyro.infer
-# model package
-from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, simout_to_hubverse_admissions, simout_to_hubverse_peak_admissions, simout_to_hubverse_peak_timing
-from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
+    # standard python libraries
+    import os
+    import time
+    import json
+    import numpy as np
+    import pandas as pd
+    import xarray as xr
+    import multiprocessing as mp
+    import matplotlib.pyplot as plt
+    from datetime import datetime, timedelta
+    # jax and diffrax
+    import jax
+    jax.config.update("jax_enable_x64", True)
+    import jax.numpy as jnp
+    from numpyro.infer import NUTS, MCMC, Predictive, init_to_value
+    import numpyro
+    numpyro.set_host_device_count(n_chains)
+    import arviz # must be after numpyro.infer
+    # model package
+    from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, simout_to_hubverse_admissions, simout_to_hubverse_peak_admissions, simout_to_hubverse_peak_timing
+    from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
 
-# all paths defined relative to this file
-abs_dir = os.path.dirname(__file__)
+    # all paths defined relative to this file
+    abs_dir = os.path.dirname(__file__)
 
-# global parameters go here
-## training metadata
-training_name = 'exclude_None-a_garch_0.0-phi_0.5-omega_0.005'
-training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
-## forecasting settings
-challenge_start_reference_date = datetime(2026, 10, 10) # must be a saturday
-challenge_end_reference_date = datetime(2027, 5, 29)    # must be the last saturday of may
-season = '2025-2026'            
-n_observations = 4            # use all data available in the forecast season
-forecast_horizon = 20           # forecast sufficiently ahead to capture peaks
-n_preoptim = 1000
-n_sample = 10
-n_tune = 10
-sigma_grw = 0.001
+    # global parameters go here
+    ## training metadata
+    training_name = 'exclude_None-a_garch_0.0-phi_0.5-omega_0.005'
+    training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
+    ## forecasting settings
+    challenge_start_reference_date = datetime(2026, 10, 10) # must be a saturday
+    challenge_end_reference_date = datetime(2027, 5, 29)    # must be the last saturday of may
+    season = '2025-2026'            
+    n_observations = 4            # use all data available in the forecast season
+    forecast_horizon = 20           # forecast sufficiently ahead to capture peaks
+    n_preoptim = 1000
+    n_sample = 10
+    n_tune = 10
+    sigma_grw = 0.001
 
-## load the model-structural parameters and training metadata
-with open(os.path.join(training_folder, "model_config.json"), "r") as f:
-    params = json.load(f)
+    ## load the model-structural parameters and training metadata
+    with open(os.path.join(training_folder, "model_config.json"), "r") as f:
+        params = json.load(f)
 
-beta = params["beta"]
-gamma = params["gamma"]
-n_basis = params["n_basis"]
-n_modifiers = params["n_modifiers"]
-modifier_length = params["modifier_length"]
-start_simulation = params["start_simulation"]
-modifier_ref_month = params["modifier_ref_month"]
-modifier_ref_day = params["modifier_ref_day"]
-clustering_name = params["clustering_name"]
+    beta = params["beta"]
+    gamma = params["gamma"]
+    n_basis = params["n_basis"]
+    n_modifiers = params["n_modifiers"]
+    modifier_length = params["modifier_length"]
+    start_simulation = params["start_simulation"]
+    modifier_ref_month = params["modifier_ref_month"]
+    modifier_ref_day = params["modifier_ref_day"]
 
-# derived products
-## convert to a list of start and enddates (datetime)
-n_seasons = 1
-start_calibrations = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) + timedelta(days=start_simulation)]    # calibrations started at same time as simulation
-modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day)]
-model_name = 'SCARCHhierarSIR'
+    # derived products
+    ## convert to a list of start and enddates (datetime)
+    n_seasons = 1
+    start_calibrations = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) + timedelta(days=start_simulation)]    # calibrations started at same time as simulation
+    modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day)]
+    model_name = 'SCARCHhierarSIR'
 
-
-# Get the clusters
-# ~~~~~~~~~~~~~~~~
-
-clusters = pd.read_csv(os.path.join(abs_dir, "../../data/interim/geography/clusters.csv"))
-cluster_indices = sorted(clusters[clustering_name].unique())
-
-
-# Loop over the clusters
-# ~~~~~~~~~~~~~~~~~~~~~~
-
-forecasts = []
-for cluster_idx in cluster_indices:
-
-    print(f'\nworking on cluster {cluster_idx}')
-    print('~~~~~~~~~~~~~~~~~~~~\n')
-
-    print(f'states in cluster: {clusters[clusters[clustering_name] == cluster_idx]['abbreviation_state'].values.tolist()}\n')
 
     # Get US demographics
     # ~~~~~~~~~~~~~~~~~~~
 
-    state_fips_index, demo = get_demography(clusters[clusters[clustering_name] == cluster_idx]['abbreviation_state'])
+    state_fips_index, demo = get_demography()
     n_states = len(demo)
 
 
@@ -115,7 +98,7 @@ for cluster_idx in cluster_indices:
     reference_date = dt[-1][-1] + timedelta(weeks=1) - timedelta(weeks=forecast_horizon)    # compute true reference date based on data instead of filename
 
     # output folder name
-    output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/forecast/{training_name}/reference_date-{reference_date.strftime('%Y-%m-%d')}/cluster_{cluster_idx}/')
+    output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/forecast/{training_name}/reference_date-{reference_date.strftime('%Y-%m-%d')}/')
 
 
     # Get the hyperparameters
@@ -213,7 +196,7 @@ for cluster_idx in cluster_indices:
     # ~~~~~~~~~~~~~~~~~~~~
 
     print('\nstarting the NUTS sampler..\n')
-    
+
     rng_key = jax.random.PRNGKey(int(time.time()))
     rng_key, rng_predict = jax.random.split(rng_key)
 
@@ -316,7 +299,7 @@ for cluster_idx in cluster_indices:
 
     # Visualise goodness-of-fit
     # ~~~~~~~~~~~~~~~~~~~~~~~~~
-    
+
     # sum over all states to get USA totals
     data = xr.concat([posterior_predictive.observed_data['obs'], posterior_predictive.observed_data['obs'].sum(dim="state").assign_coords(state="USA").expand_dims("state")], dim="state")
     obs = xr.concat([posterior_predictive.posterior_predictive['obs'], posterior_predictive.posterior_predictive['obs'].sum(dim="state").assign_coords(state="USA").expand_dims("state")], dim="state")
@@ -327,7 +310,7 @@ for cluster_idx in cluster_indices:
     new_row = pd.DataFrame([{"abbreviation_state": "USA", "name_state": "united states", "fips_state": "USA"}])
     state_fips_index = pd.concat([state_fips_index, new_row], ignore_index=True)
 
-    
+
     print('\ngenerating diagnostic plots\n')
 
     # Visualise
@@ -389,7 +372,7 @@ for cluster_idx in cluster_indices:
                                                                     dict(zip(state_fips_index["abbreviation_state"],
                                                                     state_fips_index["fips_state"])),
                                                                     quantiles=True)
-    
+
     # estimate the peak timing and convert to hubverse format
     hv_out_peak_timing = simout_to_hubverse_peak_timing(mrg["merged"],
                                                             reference_date,
@@ -397,7 +380,7 @@ for cluster_idx in cluster_indices:
                                                             challenge_end_reference_date,
                                                             dict(zip(state_fips_index["abbreviation_state"], state_fips_index["fips_state"])),
                                                             quantiles=True)
-    
+
     # convert the admissions to hubverse format
     hv_out_admissions = simout_to_hubverse_admissions(pred,
                                                         reference_date,
@@ -413,16 +396,9 @@ for cluster_idx in cluster_indices:
     # save result
     hv_out.to_csv(os.path.join(output_folder, reference_date.strftime('%Y-%m-%d')+'-Cornell_JHU'+'-'+f'{model_name}.csv'), index=False)
 
-    # append to output list
-    forecasts.append(hv_out)
+    print(f'\nforecasting complete!\n')
 
-    print(f'\nforecasts of cluster {cluster_idx} complete!\n')
+# execute script
+if __name__ == "__main__":
 
-print(f'\nmerging forecasts of all clusters\n')
-
-# concatenate all forecasts and save them
-output = pd.concat(forecasts, axis=0)
-output.to_csv(os.path.join(output_folder,'../..',reference_date.strftime('%Y-%m-%d')+'-Cornell_JHU'+'-'+f'{model_name}.csv'), index=False)
-
-print(f'\nforecasting complete!\n')
-
+    main()

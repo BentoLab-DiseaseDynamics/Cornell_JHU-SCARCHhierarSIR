@@ -8,70 +8,73 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
-n_chains = 4
-
-# standard python libraries
-import os
-import json
-import time
-import numpy as np
-import pandas as pd
-from patsy import dmatrix
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from datetime import datetime, timedelta
-# jax and numpyro
-import jax
-jax.config.update("jax_enable_x64", True)
-import jax.numpy as jnp
-import numpyro
-numpyro.set_host_device_count(n_chains)
-from numpyro.infer import NUTS, MCMC, Predictive, init_to_value
-import arviz
-
-# model package
-from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, impute_outliers
-from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
-
-
-# all paths defined relative to this file
-abs_dir = os.path.dirname(__file__)
-
-# global parameters go here
-## model-structural
-a_garch = 0.0
-b_garch = 0.0
-omega = 0.005
-phi = 0.50
-beta = 0.455
-gamma = 1/3.5
-n_basis = 20
-n_modifiers = 36
-modifier_length = 7
-start_simulation = 0 # (Sept 1)
-modifier_ref_month = 9
-modifier_ref_day = 1
-## temporal extent of training
-n_observations = 36             # run until start of June
-seasons = ['2023-2024', '2024-2025', '2025-2026']
-## sampling effort
-n_sample = 10
-n_burn = 10
-target_accept = 0.9
-n_preoptim = 5000
-training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
-## use previous sampling
-find_new_map = False
-
-## save model-structural parameters and training metadata
-output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
-os.makedirs(output_folder, exist_ok=True)
-params = {"a_garch": a_garch, "b_garch": b_garch, "omega": omega, "phi": phi, "beta": 0.455, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "n_basis": n_basis, "modifier_length": modifier_length, "start_simulation": start_simulation,
-            "modifier_ref_month": modifier_ref_month, "modifier_ref_day": modifier_ref_day, "observations": n_observations, 'seasons': seasons}
-with open(os.path.join(output_folder, "model_config.json"), "w") as f:
-    json.dump(params, f, indent=4)
-
+# wrapper
 def main():
+
+    n_chains = 4
+
+    # standard python libraries
+    import os
+    import json
+    import time
+    import numpy as np
+    import pandas as pd
+    from patsy import dmatrix
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+    from datetime import datetime, timedelta
+    # jax and numpyro
+    import jax
+    jax.config.update("jax_enable_x64", True)
+    import jax.numpy as jnp
+    import numpyro
+    numpyro.set_host_device_count(n_chains)
+    from numpyro.infer import NUTS, MCMC, Predictive, init_to_value
+    import arviz
+
+    # model package
+    from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, impute_outliers
+    from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
+
+    # all paths defined relative to this file
+    abs_dir = os.path.dirname(__file__)
+
+    # global parameters go here
+    ## model-structural
+    a_garch = 0.0
+    b_garch = 0.0
+    omega = 0.005
+    phi = 0.50
+    beta = 0.455
+    gamma = 1/3.5
+    n_basis = 20
+    n_modifiers = 36
+    modifier_length = 7
+    start_simulation = 0 # (Sept 1)
+    modifier_ref_month = 9
+    modifier_ref_day = 1
+    ## temporal extent of training
+    n_observations = 36             # run until start of June
+    seasons = ['2023-2024', '2024-2025', '2025-2026']
+    ## sampling effort
+    n_sample = 10
+    n_burn = 10
+    target_accept = 0.9
+    n_preoptim = 5000
+    training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
+    ## use previous sampling
+    find_new_map = False
+
+    ## save model-structural parameters and training metadata
+    output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
+    os.makedirs(output_folder, exist_ok=True)
+    params = {"a_garch": a_garch, "b_garch": b_garch, "omega": omega, "phi": phi, "beta": 0.455, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "n_basis": n_basis, "modifier_length": modifier_length, "start_simulation": start_simulation,
+                "modifier_ref_month": modifier_ref_month, "modifier_ref_day": modifier_ref_day, "observations": n_observations, 'seasons': seasons}
+    with open(os.path.join(output_folder, "model_config.json"), "w") as f:
+        json.dump(params, f, indent=4)
+
+
+    print('\nretrieving data')
 
     ## get a previously obtained map estimate
     if not find_new_map:
