@@ -8,126 +8,113 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
-n_chains = 8
+# wrapper
+def main():
 
-# standard python libraries
-import os
-import json
-import time
-import numpy as np
-import pandas as pd
-import xarray as xr
-import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
-# jax and diffrax
-import jax
-jax.config.update("jax_enable_x64", True)
-import jax.numpy as jnp
-from numpyro.infer import NUTS, MCMC, Predictive, init_to_value
-import numpyro
-numpyro.set_host_device_count(n_chains)
-import arviz # must be after numpyro.infer
-# model package
-from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, simout_to_hubverse_admissions
-from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
+    n_chains = 8
+
+    # standard python libraries
+    import os
+    import json
+    import time
+    import numpy as np
+    import pandas as pd
+    import xarray as xr
+    import matplotlib.pyplot as plt
+    from datetime import datetime, timedelta
+    # jax and diffrax
+    import jax
+    jax.config.update("jax_enable_x64", True)
+    import jax.numpy as jnp
+    from numpyro.infer import NUTS, MCMC, Predictive, init_to_value
+    import numpyro
+    numpyro.set_host_device_count(n_chains)
+    import arviz # must be after numpyro.infer
+    # model package
+    from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, simout_to_hubverse_admissions
+    from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
 
 
-# all paths defined relative to this file
-abs_dir = os.path.dirname(__file__)
+    # all paths defined relative to this file
+    abs_dir = os.path.dirname(__file__)
 
-# script iterates over combinations of trainings and seasons
-training_names = ['test',]
-seasons = ['2026-2027',]         
+    # script iterates over combinations of trainings and seasons
+    training_names = ['test',]
+    seasons = ['2026-2027',]         
 
-# global parameters go here
-## forecasting settings
-forecast_horizon = 4           # forecast sufficiently ahead to capture peaks
-n_preoptim = 1000
-n_sample = 25
-n_tune = 25
-sigma_grw = 0.01
-model_name = 'SCARCHhierarSIR'
-## challenge parameters
-start_month = 10
-start_day = 15
-end_month = 6
-end_day = 1
+    # global parameters go here
+    ## forecasting settings
+    forecast_horizon = 4           # forecast sufficiently ahead to capture peaks
+    n_preoptim = 1000
+    n_sample = 25
+    n_tune = 25
+    sigma_grw = 0.01
+    model_name = 'SCARCHhierarSIR'
+    ## challenge parameters
+    start_month = 10
+    start_day = 15
+    end_month = 6
+    end_day = 1
 
-# Loop over the seasons
-# ~~~~~~~~~~~~~~~~~~~~~
+    # Loop over the seasons
+    # ~~~~~~~~~~~~~~~~~~~~~
 
-for training_name, season in zip(training_names, seasons):
+    for training_name, season in zip(training_names, seasons):
 
-    print(f"\nworking on season {season}, training '{training_name}'")
-    print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n')
+        print(f"\nworking on season {season}, training '{training_name}'")
+        print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n')
 
-    ## load the model-structural parameters and training metadata
-    training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
-    with open(os.path.join(training_folder, "model_config.json"), "r") as f:
-        params = json.load(f)
+        ## load the model-structural parameters and training metadata
+        training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
+        with open(os.path.join(training_folder, "model_config.json"), "r") as f:
+            params = json.load(f)
 
-    beta = params["beta"]
-    gamma = params["gamma"]
-    n_basis = params["n_basis"]
-    n_modifiers = params["n_modifiers"]
-    modifier_length = params["modifier_length"]
-    start_simulation = params["start_simulation"]
-    modifier_ref_month = params["modifier_ref_month"]
-    modifier_ref_day = params["modifier_ref_day"]
-    clustering_name = params["clustering_name"]
+        beta = params["beta"]
+        gamma = params["gamma"]
+        n_basis = params["n_basis"]
+        n_modifiers = params["n_modifiers"]
+        modifier_length = params["modifier_length"]
+        start_simulation = params["start_simulation"]
+        modifier_ref_month = params["modifier_ref_month"]
+        modifier_ref_day = params["modifier_ref_day"]
 
-    # derived products
-    ## convert to a list of start and enddates (datetime)
-    n_seasons = 1
-    start_calibrations = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) + timedelta(days=start_simulation)]    # calibrations started at same time as simulation
-    modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day)]
+        # derived products
+        ## convert to a list of start and enddates (datetime)
+        n_seasons = 1
+        start_calibrations = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day) + timedelta(days=start_simulation)]    # calibrations started at same time as simulation
+        modifier_reference_dates = [datetime(int(season[0:4]), modifier_ref_month, modifier_ref_day)]
 
-    # Get the clusters
-    clusters = pd.read_csv(os.path.join(abs_dir, "../../data/interim/geography/clusters.csv"))
-    cluster_indices = sorted(clusters[clustering_name].unique())
+        # Loop over the weeks
+        # ~~~~~~~~~~~~~~~~~~~
 
-    # Loop over the weeks
-    # ~~~~~~~~~~~~~~~~~~~
+        # Count saturdays between simulation start and the challenge start
+        saturday_count = 0
+        current_date = start_calibrations[0]
+        while current_date <= datetime(int(season[0:4]), start_month, start_day):
+            if current_date.weekday() == 5:
+                saturday_count += 1
+            current_date += timedelta(days=1)
+        min_obs = saturday_count + 1
 
-    # Count saturdays between simulation start and the challenge start
-    saturday_count = 0
-    current_date = start_calibrations[0]
-    while current_date <= datetime(int(season[0:4]), start_month, start_day):
-        if current_date.weekday() == 5:
-            saturday_count += 1
-        current_date += timedelta(days=1)
-    min_obs = saturday_count + 1
+        # Count saturdays between simulation start and the challenge end
+        saturday_count = 0
+        current_date = start_calibrations[0]
+        while current_date <= datetime(int(season[5:]), end_month, end_day):
+            if current_date.weekday() == 5:
+                saturday_count += 1
+            current_date += timedelta(days=1)
+        max_obs = saturday_count + 1
 
-    # Count saturdays between simulation start and the challenge end
-    saturday_count = 0
-    current_date = start_calibrations[0]
-    while current_date <= datetime(int(season[5:]), end_month, end_day):
-        if current_date.weekday() == 5:
-            saturday_count += 1
-        current_date += timedelta(days=1)
-    max_obs = saturday_count + 1
+        for i, n_observations in enumerate(range(min_obs, max_obs)):
 
-    for i, n_observations in enumerate(range(min_obs, max_obs)):
-
-        print(f'\nworking on forecast {i+1} out of {len(range(min_obs,max_obs))}')
-        print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n')
-
-        # Loop over the clusters
-        # ~~~~~~~~~~~~~~~~~~~~~~
-
-        forecasts = []
-        for cluster_idx in cluster_indices:
-
-            print(f'\nworking on cluster {cluster_idx}')
-            print('~~~~~~~~~~~~~~~~~~~~\n')
-
-            print(f'states in cluster: {clusters[clusters[clustering_name] == cluster_idx]['abbreviation_state'].values.tolist()}\n')
+            print(f'\nworking on forecast {i+1} out of {len(range(min_obs,max_obs))}')
+            print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n')
 
 
             # Get US demographics
             # ~~~~~~~~~~~~~~~~~~~
 
-            state_fips_index, demo = get_demography(clusters[clusters[clustering_name] == cluster_idx]['abbreviation_state'])
+            state_fips_index, demo = get_demography()
             n_states = len(demo)
 
 
@@ -157,7 +144,7 @@ for training_name, season in zip(training_names, seasons):
                                                                             state_fips=state_fips_index['fips_state'].values) # (n_season, n_variables, n_observations)
 
             # output folder name
-            output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/incremental_forecast/{training_name}/{season}/reference_date-{reference_date.strftime('%Y-%m-%d')}/cluster_{cluster_idx}/')
+            output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/incremental_forecast/{training_name}/{season}/reference_date-{reference_date.strftime('%Y-%m-%d')}/')
 
 
             # Get the hyperparameters
@@ -434,16 +421,9 @@ for training_name, season in zip(training_names, seasons):
             # save result
             hv_out.to_csv(os.path.join(output_folder, reference_date.strftime('%Y-%m-%d')+'-Cornell_JHU'+'-'+f'{model_name}.csv'), index=False)
 
-            # append to output list
-            forecasts.append(hv_out)
+            print(f'\nforecasting complete!\n')
 
-            print(f'\nforecasts of cluster {cluster_idx} complete!\n')
+# execute script
+if __name__ == "__main__":
 
-        print(f'\nmerging forecasts of all clusters\n')
-
-        # concatenate all forecasts and save them
-        output = pd.concat(forecasts, axis=0)
-        output.to_csv(os.path.join(output_folder,'../..',reference_date.strftime('%Y-%m-%d')+'-Cornell_JHU'+'-'+f'{model_name}.csv'), index=False)
-
-        print(f'\nforecasting complete!\n')
-
+    main()
