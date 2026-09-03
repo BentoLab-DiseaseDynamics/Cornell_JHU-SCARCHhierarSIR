@@ -76,7 +76,7 @@ def training_model(data, weights, adj, phi, omega, a_garch, b_garch, spline_basi
     # ============================================================
 
     # Global
-    log_rho_global_mean = numpyro.sample("log_rho_global_mean", dist.Normal(jnp.log(0.005), 1/3))
+    log_rho_global_mean = numpyro.sample("log_rho_global_mean", dist.Normal(jnp.log(0.01), 1/2))   # 0.01, 1/2
     numpyro.deterministic("rho_global_mean", jnp.exp(log_rho_global_mean))
 
     # State
@@ -104,7 +104,7 @@ def training_model(data, weights, adj, phi, omega, a_garch, b_garch, spline_basi
     # ============================================================
 
     # Global
-    log_fI_global_mean = numpyro.sample("log_fI_global_mean", dist.Normal(jnp.log(0.0001), 1/3))
+    log_fI_global_mean = numpyro.sample("log_fI_global_mean", dist.Normal(jnp.log(0.0001), 1/2))    # 0.0001, 1/2
     numpyro.deterministic("fI_global_mean", jnp.exp(log_fI_global_mean))
 
     # State
@@ -132,12 +132,12 @@ def training_model(data, weights, adj, phi, omega, a_garch, b_garch, spline_basi
     # ============================================================
 
     # Global
-    logit_fR_global_mean = numpyro.sample("logit_fR_global_mean", dist.Normal(jax.scipy.special.logit(0.3), 0.25)) # raise to 0.5 and 1 to find a good MAP
+    logit_fR_global_mean = numpyro.sample("logit_fR_global_mean", dist.Normal(jax.scipy.special.logit(0.375), 0.22)) # 0.375, 0.22
     fR_global_mean = jax.nn.sigmoid(logit_fR_global_mean)
     numpyro.deterministic("fR_global_mean", fR_global_mean)
 
     # State
-    fR_state_sd = numpyro.sample("fR_state_sd", dist.HalfNormal(1/5))
+    fR_state_sd = numpyro.sample("fR_state_sd", dist.HalfNormal(1/10))
     fR_state_raw = numpyro.sample("fR_state_raw", dist.Normal(0, 1).expand([n_states]))
     numpyro.deterministic("fR_state", jnp.exp(fR_state_sd * fR_state_raw))
 
