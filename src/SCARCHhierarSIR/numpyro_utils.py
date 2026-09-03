@@ -19,14 +19,14 @@ import optax
 import jax.numpy as jnp
 import numpyro.distributions as dist
 from numpyro.infer.util import initialize_model
-from numpyro.infer import init_to_median, init_to_sample, init_to_mean
+from numpyro.infer import init_to_median, init_to_sample, init_to_mean, init_to_value
 
 
 #####################
 ## Finding the MAP ##
 #####################
 
-def find_map(model, model_kwargs, n_preoptim=1000, lr=1e-2):
+def find_map(model, model_kwargs, n_preoptim=1000, lr=1e-2, map_params=None):
     """
     Find the MAP estimate of a NumPyro model using Adam optimization.
 
@@ -56,12 +56,17 @@ def find_map(model, model_kwargs, n_preoptim=1000, lr=1e-2):
 
     rng_key = jax.random.PRNGKey(int(time.time()))
 
+    if map_params:
+        init_strategy=init_to_value(values=map_params)
+    else:
+        init_strategy=init_to_median()
+
     init_params_info, potential_fn, postprocess_fn, _ = (
         initialize_model(
             rng_key,
             model,
             model_kwargs=model_kwargs,
-            init_strategy=init_to_median()
+            init_strategy=init_strategy
         )
     )
 
