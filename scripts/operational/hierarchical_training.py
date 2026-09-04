@@ -10,6 +10,13 @@ Licensed under CC BY-NC-SA 4.0
 
 n_chains = 4
 
+# Suppress the specific UserWarning from JAX regarding int64 truncation
+import warnings
+warnings.filterwarnings(
+    "ignore", 
+    message="Explicitly requested dtype int64 requested in astype is not available"
+)
+
 # standard python libraries
 import os
 import json
@@ -31,6 +38,7 @@ import arviz
 # model package
 from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, impute_outliers
 from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
+
 
 # wrapper
 def main():
@@ -186,7 +194,7 @@ def main():
     start_dt = datetime.now()
     start_time = time.time()
 
-    print(f"\nStarting the NUTS sampler at: {start_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
+    print(f"\nstarting the NUTS sampler at: {start_dt.strftime('%Y-%m-%d %H:%M:%S')} ..")
 
     rng_key = jax.random.PRNGKey(int(time.time()))
     rng_key, rng_predict = jax.random.split(rng_key)
@@ -224,8 +232,9 @@ def main():
     elapsed_seconds = time.time() - start_time
     elapsed_formatted = str(timedelta(seconds=int(elapsed_seconds)))
 
-    print(f"\n..finished sampling at: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Total elapsed time: {elapsed_formatted}\n")
+    print(f"..and finished sampling at: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
+    print(f"total elapsed time: {elapsed_formatted}\n")
+
     print('\nsaving traces\n')
 
     # convert to arviz
