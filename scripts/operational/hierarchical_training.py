@@ -9,7 +9,7 @@ Licensed under CC BY-NC-SA 4.0
 """
 
 nuts_progress_bar = False
-n_chains = 4
+n_chains = 8
 
 # Suppress the specific UserWarning from JAX regarding int64 truncation
 import warnings
