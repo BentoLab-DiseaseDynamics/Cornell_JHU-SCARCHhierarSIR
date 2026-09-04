@@ -8,7 +8,7 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
-n_chains = 8
+n_chains = 4
 
 # standard python libraries
 import os
@@ -56,10 +56,10 @@ def main():
     n_observations = 36             # run until start of June
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
-    n_sample = 250
-    n_burn = 150
+    n_sample = 1
+    n_burn = 1
     target_accept = 0.8
-    n_preoptim = 5000
+    n_preoptim = 500
     training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
     ## use previous sampling
     find_new_map = False
@@ -183,7 +183,10 @@ def main():
     # Sample numpyro model
     # ~~~~~~~~~~~~~~~~~~~~
 
-    print('\nstarting the NUTS sampler..\n')
+    start_dt = datetime.now()
+    start_time = time.time()
+
+    print(f"\nStarting the NUTS sampler at: {start_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     rng_key = jax.random.PRNGKey(int(time.time()))
     rng_key, rng_predict = jax.random.split(rng_key)
@@ -213,7 +216,13 @@ def main():
         extra_fields=["potential_energy", "adapt_state.step_size"]
     )
 
-    print('\n..finished sampling\n')
+    # Record the end timestamp and compute elapsed time
+    end_dt = datetime.now()
+    elapsed_seconds = time.time() - start_time
+    elapsed_formatted = str(timedelta(seconds=int(elapsed_seconds)))
+
+    print(f"\n..finished sampling at: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Total elapsed time: {elapsed_formatted}\n")
     print('\nsaving traces\n')
 
     # convert to arviz

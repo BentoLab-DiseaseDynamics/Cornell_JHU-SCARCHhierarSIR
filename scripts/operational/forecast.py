@@ -195,7 +195,10 @@ def main():
     # Sample numpyro model
     # ~~~~~~~~~~~~~~~~~~~~
 
-    print('\nstarting the NUTS sampler..\n')
+    start_dt = datetime.now()
+    start_time = time.time()
+
+    print(f"\nStarting the NUTS sampler at: {start_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     rng_key = jax.random.PRNGKey(int(time.time()))
     rng_key, rng_predict = jax.random.split(rng_key)
@@ -225,7 +228,13 @@ def main():
         extra_fields=["potential_energy", "adapt_state.step_size"]
     )
 
-    print('\n..finished sampling\n')
+    # Record the end timestamp and compute elapsed time
+    end_dt = datetime.now()
+    elapsed_seconds = time.time() - start_time
+    elapsed_formatted = str(timedelta(seconds=int(elapsed_seconds)))
+
+    print(f"\n..finished sampling at: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Total elapsed time: {elapsed_formatted}\n")
     print('\nsaving traces\n')
 
     # convert to arviz
