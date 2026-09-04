@@ -388,8 +388,4 @@ def forecasting_model(data, weights, posterior_params, adj, sigma_grw, args_stat
         # Forecast observation model
         numpyro.sample("pred", dist.NegativeBinomial2(mean=H_future_rw, concentration=alpha[None, :, None]), obs=None)
 
-
-    #if data is None:
-    #    numpyro.sample("pred", dist.NegativeBinomial2(mean=H[:, :, n_observations:], concentration=alpha[None, :, None]), obs=None)
-
     pass
