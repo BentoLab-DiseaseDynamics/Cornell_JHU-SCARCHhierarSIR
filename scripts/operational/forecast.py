@@ -8,6 +8,7 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
+nuts_progress_bar = True
 n_chains = 8
 
 # Suppress the specific UserWarning from JAX regarding int64 truncation
@@ -24,8 +25,8 @@ import json
 import numpy as np
 import pandas as pd
 import xarray as xr
-import multiprocessing as mp
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from datetime import datetime, timedelta
 # jax and diffrax
 import jax
@@ -47,18 +48,19 @@ def main():
 
     # global parameters go here
     ## training metadata
-    training_name = 'exclude_None-a_garch_0.0-phi_0.5-omega_0.005'
+    target_accept = 0.8
+    training_name = f'exclude_None-a_garch_0.0-phi_0.5-omega_0.005-targetaccept_{target_accept}'
     training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     ## forecasting settings
     challenge_start_reference_date = datetime(2026, 10, 10) # must be a saturday
     challenge_end_reference_date = datetime(2027, 5, 29)    # must be the last saturday of may
     season = '2025-2026'            
-    n_observations = 4            # use all data available in the forecast season
-    forecast_horizon = 20           # forecast sufficiently ahead to capture peaks
+    n_observations = 5            # use all data available in the forecast season
+    forecast_horizon = 4           # forecast sufficiently ahead to capture peaks
     n_preoptim = 1000
-    n_sample = 50
-    n_tune = 50
-    sigma_grw = 0.001
+    n_sample = 10
+    n_tune = 10
+    sigma_grw = 0.1
 
     ## load the model-structural parameters and training metadata
     with open(os.path.join(training_folder, "model_config.json"), "r") as f:
@@ -226,7 +228,7 @@ def main():
         num_samples=n_sample,
         num_chains=n_chains,
         chain_method="parallel",
-        progress_bar=False,
+        progress_bar=nuts_progress_bar,
     )
 
     mcmc.run(
@@ -235,10 +237,11 @@ def main():
         extra_fields=["potential_energy", "adapt_state.step_size"]
     )
 
-    # Chain collection avoids weird sequencing of printouts
-    _ = mcmc.get_samples()
+    # Chain collection prevents jax asynchronous dispatch from weirdly sequencing printouts
+    jax.tree_util.tree_map(lambda x: x.block_until_ready(), mcmc.get_samples())
 
     # Record the end timestamp and compute elapsed time
+    time.sleep(1)
     end_dt = datetime.now()
     elapsed_seconds = time.time() - start_time
     elapsed_formatted = str(timedelta(seconds=int(elapsed_seconds)))
@@ -358,7 +361,9 @@ def main():
         ax.fill_between(dates_pred,
                         pred.quantile(dim=['chain', 'draw'], q=0.25).values[0,s,:],
                         pred.quantile(dim=['chain', 'draw'], q=0.75).values[0,s,:],
-                        color='red', alpha=0.1)    
+                        color='red', alpha=0.1)
+        ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1)) # Tick every 1 month
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m')) # Format: YYYY-MM
         fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
         fig.tight_layout()
         os.makedirs(os.path.join(output_folder, 'goodness-fit'), exist_ok=True)

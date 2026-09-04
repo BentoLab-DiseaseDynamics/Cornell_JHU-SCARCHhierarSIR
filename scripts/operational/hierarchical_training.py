@@ -8,6 +8,7 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
+nuts_progress_bar = False
 n_chains = 4
 
 # Suppress the specific UserWarning from JAX regarding int64 truncation
@@ -64,8 +65,8 @@ def main():
     n_observations = 36             # run until start of June
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
-    n_sample = 150
-    n_burn = 150
+    n_sample = 5
+    n_burn = 5
     target_accept = 0.8
     n_preoptim = 5000
     training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
@@ -215,7 +216,7 @@ def main():
         num_samples=n_sample,
         num_chains=n_chains,
         chain_method="parallel",
-        progress_bar=False,
+        progress_bar=nuts_progress_bar,
     )
 
     mcmc.run(
@@ -224,8 +225,9 @@ def main():
         extra_fields=["potential_energy", "adapt_state.step_size"]
     )
 
-    # Chain collection avoids weird sequencing of printouts
-    _ = mcmc.get_samples()
+    # Chain collection prevents jax asynchronous dispatch from weirdly sequencing printouts
+    time.sleep(1)
+    jax.tree_util.tree_map(lambda x: x.block_until_ready(), mcmc.get_samples())
 
     # Record the end timestamp and compute elapsed time
     end_dt = datetime.now()
