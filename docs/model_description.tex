@@ -91,18 +91,19 @@ The case ascertainment rate in season $i$, U.S.\ state $j$ is modeled using the 
     \sigma^{(i)}_\rho,\, \sigma^{(j)}_\rho &\sim \HalfNormal\! \left( 1/5 \right), \nonumber\\
     u^{(i)}_{\rho}, u^{(j)}_{\rho} & \overset{\mathrm{iid}}{\sim} \Normal(0,1),
 \end{align}
-where the priors $\mu_{\rho} = \log \left( 0.5~\% \right)$ and $\sigma_{\rho} = 1/2$ center the hierarchy at 0.5~\% case ascertainment with 95~\% of the mass between $0.1~\%$ and $2.2~\%$. The halfnormal distribution on $\sigma_{\rho}^{(i)},~\sigma_{\rho}^{(j)}$ shrink season- and spatial effect sizes when the data does not support them.\\
+where the priors $\mu_{\rho} = \log \left( 1.0~\% \right)$ and $\sigma_{\rho} = 1/2$ center the hierarchy at 1.0~\% case ascertainment with 95~\% of the mass between $0.2~\%$ and $4.5~\%$. The halfnormal distribution on $\sigma_{\rho}^{(i)},~\sigma_{\rho}^{(j)}$ shrink season- and spatial effect sizes when the data does not support them.\\
 
 The initial fraction of infected $f_I$ has small values ($f_I$ $\approx 10^{-5}$), and for this reason we use a log-link instead of the more natural logit-link function, because this results in better posterior geometry.\\
 
 The initial fraction of recovered $f_R$ in season $i$, U.S.\ state $j$ is modeled using a logit-additive link to enforce the unit-interval constraint,
 \begin{align}\label{eq:f_R}
 	\text{logit}\,f_{R,i,j} &= \text{logit}\,\bar{f}_R + \sigma^{(i)}_{f_R}\, u^{(i)}_{f_R} + \sigma^{(j)}_{f_R}\, u^{(j)}_{f_R}, \nonumber\\
-    \text{logit}\,\bar{f}_R &\sim \Normal\!\left(\text{logit}(0.4),\ 1\right), \nonumber\\
-    \sigma^{(i)}_{f_R},\, \sigma^{(j)}_{f_R} &\sim \HalfNormal\!\left(1/5\right), \nonumber\\
+    \text{logit}\,\bar{f}_R &\sim \Normal\!\left(\text{logit}(0.4),\ 0.22\right), \nonumber\\
+    \sigma^{(i)}_{f_R} &\sim \HalfNormal\!\left(1/5\right), \nonumber\\
+    \sigma^{(j)}_{f_R} &\sim \HalfNormal\!\left(1/10\right), \nonumber\\
     u^{(i)}_{f_R}, u^{(j)}_{f_R} & \overset{\mathrm{iid}}{\sim}\Normal(0,1),
 \end{align}
-The prior on $\text{logit}\,\bar{f}_R$ places the population-mean immunity at $40\pm10\%$, which results in an effective reproduction number of $R_e \approx 1$ at the start of the influenza season, anchoring the model, consistent with \texttt{hierarchSIR}.
+The prior on $\text{logit}\,\bar{f}_R$ places the population-mean immunity at $37.5\pm10.0\%$, which results in an effective reproduction number of $R_e = 1 \given \Delta \beta_{i,j}(t) = 0$ at the start of the influenza season, anchoring the model, consistent with \texttt{hierarchSIR}.
 
 %-----------------------------------------------------------
 \subsubsection*{Spatially Correlated AR(1)--GARCH(1,1) Transmission Modifiers}\label{sec:argarch}
