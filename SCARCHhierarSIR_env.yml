@@ -4,16 +4,8 @@ channels:
 dependencies:
   - pip
   - python=3.14
-  - numpyro=0.21.0
-  - arviz>1
-  - diffrax=0.7.2    
-  - jax
-  - optax
-  - numpy
-  - pandas
-  - scipy
   - pyarrow
   - fastparquet
-  - netcdf4
   - pygam
   - patsy
+  - matplotlib

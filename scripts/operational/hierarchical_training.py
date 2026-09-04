@@ -11,7 +11,7 @@ Licensed under CC BY-NC-SA 4.0
 # wrapper
 def main():
 
-    n_chains = 4
+    n_chains = 8
 
     # standard python libraries
     import os
@@ -57,10 +57,10 @@ def main():
     n_observations = 36             # run until start of June
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
-    n_sample = 10
-    n_burn = 10
-    target_accept = 0.9
-    n_preoptim = 5000
+    n_sample = 250
+    n_burn = 150
+    target_accept = 0.8
+    n_preoptim = 25000
     training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
     ## use previous sampling
     find_new_map = False
