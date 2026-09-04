@@ -219,7 +219,7 @@ def main():
         num_samples=n_sample,
         num_chains=n_chains,
         chain_method="parallel",
-        progress_bar=True,
+        progress_bar=False,
     )
 
     mcmc.run(
@@ -227,6 +227,9 @@ def main():
         **model_kwargs,
         extra_fields=["potential_energy", "adapt_state.step_size"]
     )
+
+    # Chain collection avoids weird sequencing of printouts
+    _ = mcmc.get_samples()
 
     # Record the end timestamp and compute elapsed time
     end_dt = datetime.now()
