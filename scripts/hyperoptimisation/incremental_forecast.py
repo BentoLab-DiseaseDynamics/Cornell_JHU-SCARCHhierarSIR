@@ -10,6 +10,13 @@ Licensed under CC BY-NC-SA 4.0
 
 n_chains = 8
 
+# Suppress the specific UserWarning from JAX regarding int64 truncation
+import warnings
+warnings.filterwarnings(
+    "ignore", 
+    message="Explicitly requested dtype int64 requested in astype is not available"
+)
+
 # standard python libraries
 import os
 import json
