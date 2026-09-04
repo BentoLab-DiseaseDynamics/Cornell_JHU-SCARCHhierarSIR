@@ -8,32 +8,30 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
+n_chains = 8
+
+# standard python libraries
+import os
+import json
+import time
+import numpy as np
+import pandas as pd
+import xarray as xr
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+# jax and diffrax
+import jax
+import jax.numpy as jnp
+from numpyro.infer import NUTS, MCMC, Predictive, init_to_value
+import numpyro
+numpyro.set_host_device_count(n_chains)
+import arviz # must be after numpyro.infer
+# model package
+from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, simout_to_hubverse_admissions
+from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
+
 # wrapper
 def main():
-
-    n_chains = 8
-
-    # standard python libraries
-    import os
-    import json
-    import time
-    import numpy as np
-    import pandas as pd
-    import xarray as xr
-    import matplotlib.pyplot as plt
-    from datetime import datetime, timedelta
-    # jax and diffrax
-    import jax
-    jax.config.update("jax_enable_x64", True)
-    import jax.numpy as jnp
-    from numpyro.infer import NUTS, MCMC, Predictive, init_to_value
-    import numpyro
-    numpyro.set_host_device_count(n_chains)
-    import arviz # must be after numpyro.infer
-    # model package
-    from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, simout_to_hubverse_admissions
-    from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
-
 
     # all paths defined relative to this file
     abs_dir = os.path.dirname(__file__)

@@ -8,33 +8,32 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
+n_chains = 8
+
+# standard python libraries
+import os
+import json
+import time
+import numpy as np
+import pandas as pd
+from patsy import dmatrix
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from datetime import datetime, timedelta
+# jax and numpyro
+import jax
+import jax.numpy as jnp
+import numpyro
+numpyro.set_host_device_count(n_chains)
+from numpyro.infer import NUTS, MCMC, Predictive, init_to_value
+import arviz
+
+# model package
+from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, impute_outliers
+from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
+
 # wrapper
 def main():
-
-    n_chains = 8
-
-    # standard python libraries
-    import os
-    import json
-    import time
-    import numpy as np
-    import pandas as pd
-    from patsy import dmatrix
-    import matplotlib.pyplot as plt
-    import matplotlib.dates as mdates
-    from datetime import datetime, timedelta
-    # jax and numpyro
-    import jax
-    jax.config.update("jax_enable_x64", True)
-    import jax.numpy as jnp
-    import numpyro
-    numpyro.set_host_device_count(n_chains)
-    from numpyro.infer import NUTS, MCMC, Predictive, init_to_value
-    import arviz
-
-    # model package
-    from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, impute_outliers
-    from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
 
     # all paths defined relative to this file
     abs_dir = os.path.dirname(__file__)
@@ -60,7 +59,7 @@ def main():
     n_sample = 250
     n_burn = 150
     target_accept = 0.8
-    n_preoptim = 25000
+    n_preoptim = 5000
     training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
     ## use previous sampling
     find_new_map = False
