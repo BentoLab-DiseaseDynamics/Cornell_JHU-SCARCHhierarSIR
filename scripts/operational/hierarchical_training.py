@@ -67,7 +67,7 @@ def main():
     ## sampling effort
     n_sample = 250
     n_burn = 150
-    target_accept = 0.85
+    target_accept = 0.65
     n_preoptim = 5000
     training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
     ## use previous sampling
