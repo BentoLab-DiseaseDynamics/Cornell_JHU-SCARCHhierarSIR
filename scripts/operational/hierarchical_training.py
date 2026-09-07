@@ -30,6 +30,7 @@ import matplotlib.dates as mdates
 from datetime import datetime, timedelta
 # jax and numpyro
 import jax
+jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 import numpyro
 numpyro.set_host_device_count(n_chains)
