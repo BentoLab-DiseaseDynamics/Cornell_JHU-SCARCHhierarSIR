@@ -112,7 +112,7 @@ def main():
     # Get US incidences
     # ~~~~~~~~~~~~~~~~~
 
-    reference_date, data, dt, ts, n_observations = get_NHSN_HRD_data(start_calibrations, modifier_reference_dates, n_observations, forecast_horizon=None, state_fips=state_fips_index['fips_state'].values) # (n_season, n_variables, n_observations)
+    _, data, dt, ts, n_observations = get_NHSN_HRD_data(start_calibrations, modifier_reference_dates, n_observations, forecast_horizon=None, state_fips=state_fips_index['fips_state'].values) # (n_season, n_variables, n_observations)
 
     # Outlier detection
     # ~~~~~~~~~~~~~~~~~
@@ -207,7 +207,7 @@ def main():
         adapt_step_size=True,
         max_tree_depth=12,
         target_accept_prob=target_accept,
-        dense_mass=True,
+        dense_mass=[('log_rho_global_mean', 'log_fI_global_mean', 'logit_fR_global_mean'), ('rho_season_sd', 'rho_season_raw', 'fI_season_sd', 'fI_season_raw', 'fR_season_sd', 'fR_season_raw')],
         init_strategy = init_to_value(values=map_params),
     )
 
@@ -246,8 +246,76 @@ def main():
     # save traces to a netcdf
     trace.to_netcdf(os.path.join(output_folder, f"trace.nc"))
 
-    # TODO: save the inverse mass matrix
+    # save the inverse mass matrix
     inv_mass_matrix = mcmc.last_state.adapt_state.inverse_mass_matrix # you will save this as a .json and then use it to restart runs
+
+    import pickle
+    os.makedirs(os.path.join(output_folder,f'dense-mass-matrices'), exist_ok=True)
+    with open(os.path.join(output_folder, "dense-mass-matrices/inv_mass_matrix.pkl"), "wb") as f:
+        pickle.dump(inv_mass_matrix, f)
+
+    # visualise the dense mass matrices
+    for i in range(1,4):
+
+        mass_matrix_all = jax.vmap(jnp.linalg.inv)(list(inv_mass_matrix.values())[i])   # extract JAX array
+
+        # 1. Get the site names in the exact order they appear in the matrix
+        site_names = list(inv_mass_matrix.keys())[i]
+
+        # 2. Get your samples to find the size of each site's flat dimension
+        samples = mcmc.get_samples()
+
+        # Calculate the slice indices for each major site
+        site_indices = {}
+        current_idx = 0
+
+        for name in site_names:
+            # Calculate total size of this site (product of its trailing dimensions)
+            # e.g., if shape is (8, 10, 5) for 8 chains, the site size is 10 * 5 = 50
+            site_size = np.prod(samples[name].shape[1:]) 
+            
+            start_idx = current_idx
+            end_idx = current_idx + site_size
+            
+            site_indices[name] = (start_idx, end_idx)
+            current_idx = end_idx
+
+        for j in range(n_chains):
+                
+            # Assuming you have 'site_indices' from the previous step and 'inv_mass_chain0'
+            matrix_to_plot = np.array(mass_matrix_all[j])
+
+            fig, ax = plt.subplots(figsize=(8.3, 8.3))
+            im = ax.imshow(matrix_to_plot, cmap='viridis', aspect='auto')
+
+            # Lists to hold label positions and names
+            tick_positions = []
+            tick_labels = []
+
+            # Loop through the sites to draw boundaries and calculate label midpoints
+            for name, (start, end) in site_indices.items():
+                # 1. Draw grid lines at the end of each block (except the very last one)
+                if end < matrix_to_plot.shape[0]:
+                    ax.axhline(end - 0.5, color='white', linestyle='--', linewidth=0.5, alpha=1)
+                    ax.axvline(end - 0.5, color='white', linestyle='--', linewidth=0.5, alpha=1)
+                
+                # 2. Find the middle of the block for the label position
+                midpoint = start + (end - start) / 2
+                tick_positions.append(midpoint)
+                tick_labels.append(name)
+
+            # Apply the labels to both X and Y axes
+            ax.set_xticks(tick_positions)
+            ax.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=7)
+
+            ax.set_yticks(tick_positions)
+            ax.set_yticklabels(tick_labels, fontsize=7)
+
+            fig.colorbar(im, ax=ax, label='Value', shrink=0.8)
+
+            plt.savefig(os.path.join(output_folder, f'dense-mass-matrices/mass_matrix_{i}-chain_{j}.svg'), bbox_inches='tight')
+            plt.close()
+
 
     # plot the step sizes
     fig,ax = plt.subplots(figsize=(8.3, 11.7/4))
