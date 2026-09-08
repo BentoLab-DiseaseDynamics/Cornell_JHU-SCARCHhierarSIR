@@ -67,9 +67,9 @@ def main():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_sample = 250
-    n_burn = 150
-    target_accept = 0.65
-    n_preoptim = 5000
+    n_burn = 250
+    target_accept = 0.80
+    n_preoptim = 100
     training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
     ## use previous sampling
     find_new_map = False
@@ -255,7 +255,7 @@ def main():
         pickle.dump(inv_mass_matrix, f)
 
     # visualise the dense mass matrices
-    for i in range(1,4):
+    for i in range(1,3):
 
         mass_matrix_all = jax.vmap(jnp.linalg.inv)(list(inv_mass_matrix.values())[i])   # extract JAX array
 

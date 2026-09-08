@@ -137,7 +137,7 @@ def training_model(data, weights, adj, phi, omega, a_garch, b_garch, spline_basi
     numpyro.deterministic("fR_global_mean", fR_global_mean)
 
     # State
-    fR_state_sd = numpyro.sample("fR_state_sd", dist.HalfNormal(1/10))
+    fR_state_sd = numpyro.sample("fR_state_sd", dist.HalfNormal(1/20))
     fR_state_raw = numpyro.sample("fR_state_raw", dist.Normal(0, 1).expand([n_states]))
     numpyro.deterministic("fR_state", jnp.exp(fR_state_sd * fR_state_raw))
 
