@@ -59,17 +59,17 @@ def main():
     n_basis = 20
     n_modifiers = 36
     modifier_length = 7
-    start_simulation = 0 # (Sept 1)
+    start_simulation = -21 # (Sept 1)
     modifier_ref_month = 9
-    modifier_ref_day = 1
+    modifier_ref_day = 21
     ## temporal extent of training
     n_observations = 36             # run until start of June
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
-    n_sample = 250
+    n_sample = 150
     n_burn = 250
     target_accept = 0.80
-    n_preoptim = 100
+    n_preoptim = 10000
     training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
     ## use previous sampling
     find_new_map = False
