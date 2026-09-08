@@ -56,14 +56,14 @@ def main():
     phi = 0.50
     beta = 0.455
     gamma = 1/3.5
-    n_basis = 20
-    n_modifiers = 36
+    n_basis = 18
+    n_modifiers = 33
     modifier_length = 7
     start_simulation = -21 # (Sept 1)
     modifier_ref_month = 9
     modifier_ref_day = 21
     ## temporal extent of training
-    n_observations = 36             # run until start of June
+    n_observations = 39             # run last week of may
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_sample = 150
