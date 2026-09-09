@@ -82,6 +82,7 @@ def main():
         start_simulation = params["start_simulation"]
         modifier_ref_month = params["modifier_ref_month"]
         modifier_ref_day = params["modifier_ref_day"]
+        stepsize = params['stepsize']
 
         # derived products
         ## convert to a list of start and enddates (datetime)
@@ -189,7 +190,7 @@ def main():
 
             weights = compute_season_weights(data[:,:,:n_observations])
 
-            args_static = (start_simulation, float(max(ts[:,-1])), modifier_length, jnp.full((n_seasons, n_states), beta), gamma, jnp.asarray(demo), ts)
+            args_static = (start_simulation, float(max(ts[:,-1])), modifier_length, jnp.full((n_seasons, n_states), beta), gamma, jnp.asarray(demo), ts, stepsize)
 
             # load forecasting model and its RV dimensions
             from SCARCHhierarSIR.numpyro_models import forecasting_model, forecasting_RV_dims
@@ -255,8 +256,8 @@ def main():
                 step_size=0.0002,
                 adapt_step_size=True,
                 max_tree_depth=12,
-                target_accept_prob=0.98,
-                dense_mass=True,
+                target_accept_prob=0.80,
+                dense_mass=[('rho_season_raw', 'fI_season_raw', 'fR_season_raw')],
                 init_strategy = init_to_value(values=map_params),
             )
 
