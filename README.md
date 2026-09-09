@@ -16,14 +16,14 @@ conda update conda
 
 Setup/update the `environment`: All dependencies needed to run the scripts are collected in the conda `SCARCHhierarSIR_env.yml` file. To set up the environment,
 
-```
+```bash
 conda env create -f SCARCHhierarSIR_env.yml
 conda activate SCARCH_HIERARSIR
 ```
 
 or alternatively, to update the environment (needed after adding a dependency),
 
-```
+```bash
 conda activate SCARCH_HIERARSIR
 conda env update -f SCARCHhierarSIR_env.yml --prune
 ```
@@ -32,27 +32,25 @@ conda env update -f SCARCHhierarSIR_env.yml --prune
 
 Install the `SCARCHhierarSIR` Python package inside the conda environment using,
 
-```
+```bash
 conda activate SCARCH_HIERARSIR
-pip install -e . --force-reinstall
+pip install -e .
 ```
 
 ### Model training and forecasting
 
-#### Clustering 
-
-Instead of modeling all 52 U.S. states and territories at once, the code can automatically loop over clusters of states and territories. The clustering pipeline interfaces with the `SCARCHhierarSIR` model through `~/data/interim/geography/cluster.csv`.
+See `~/model_description.pdf`.
 
 #### Training (execute once before season start)
 
-```
+```bash
 cd ~/scripts/operational/
-python train.py
+python hierarchical_training.py
 ```
 
 #### Forecast (performed weekly through GH actions)
 
-```
+```bash
 cd ~/scripts/operational/
 python forecast.py
 ```
