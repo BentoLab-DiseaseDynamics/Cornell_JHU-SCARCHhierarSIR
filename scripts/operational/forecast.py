@@ -48,19 +48,19 @@ def main():
 
     # global parameters go here
     ## training metadata
-    target_accept = 0.8
+    target_accept = 0.65
     training_name = f'exclude_None-a_garch_0.0-phi_0.5-omega_0.005-targetaccept_{target_accept}'
     training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     ## forecasting settings
     challenge_start_reference_date = datetime(2026, 10, 10) # must be a saturday
     challenge_end_reference_date = datetime(2027, 5, 29)    # must be the last saturday of may
     season = '2025-2026'            
-    n_observations = 5              # use all data available in the forecast season
+    n_observations = 12              # use all data available in the forecast season
     forecast_horizon = 4            # forecast sufficiently ahead to capture peaks
-    n_preoptim = 1000
-    n_sample = 10
-    n_tune = 10
-    sigma_grw = 0.1
+    n_preoptim = 5000
+    n_sample = 100
+    n_tune = 250
+    sigma_grw = 0.01
 
     ## load the model-structural parameters and training metadata
     with open(os.path.join(training_folder, "model_config.json"), "r") as f:
@@ -218,8 +218,8 @@ def main():
         step_size=0.0002,
         adapt_step_size=True,
         max_tree_depth=12,
-        target_accept_prob=0.98,
-        dense_mass=True,
+        target_accept_prob=0.8,
+        dense_mass=[('rho_season_raw', 'fI_season_raw', 'fR_season_raw')],
         init_strategy = init_to_value(values=map_params),
     )
 

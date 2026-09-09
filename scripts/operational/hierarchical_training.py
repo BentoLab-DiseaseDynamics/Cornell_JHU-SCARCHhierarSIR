@@ -69,7 +69,7 @@ def main():
     ## sampling effort
     n_sample = 200
     n_burn = 300
-    target_accept = 0.7
+    target_accept = 0.65
     n_preoptim = 250
     training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
     ## use previous sampling
@@ -79,7 +79,7 @@ def main():
     output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     os.makedirs(output_folder, exist_ok=True)
     params = {"a_garch": a_garch, "b_garch": b_garch, "omega": omega, "phi": phi, "beta": 0.455, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "n_basis": n_basis, "modifier_length": modifier_length, "start_simulation": start_simulation,
-                "modifier_ref_month": modifier_ref_month, "modifier_ref_day": modifier_ref_day, "observations": n_observations, 'seasons': seasons, "stepsize": stepsize}
+                "modifier_ref_month": modifier_ref_month, "modifier_ref_day": modifier_ref_day, "observations": n_observations, 'seasons': seasons, "stepsize": stepsize, "target_accept": target_accept}
     with open(os.path.join(output_folder, "model_config.json"), "w") as f:
         json.dump(params, f, indent=4)
 
