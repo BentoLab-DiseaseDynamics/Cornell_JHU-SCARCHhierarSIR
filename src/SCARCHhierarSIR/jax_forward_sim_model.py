@@ -32,7 +32,7 @@ def SIR_vector_field(t, y, args):
 ## Write the single state/season simulator ##
 #############################################
 
-def simulate_one_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0, t1, ts):
+def simulate_one_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0, t1, ts, stepsize):
     """
     Simulate one season/state SIR system.
 
@@ -56,6 +56,9 @@ def simulate_one_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
     ts : array
         Observation times.
 
+    stepsize: float
+        Simulation stepsize (fixed)
+
     Returns
     -------
     ys : array
@@ -77,7 +80,7 @@ def simulate_one_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
         diffrax.Heun(),
         t0=t0,
         t1=t1,
-        dt0=7,
+        dt0=stepsize,
         y0=y0,
         args=(beta, daily_ts, delta_beta_daily, gamma),
         saveat=diffrax.SaveAt(ts=ts),
@@ -87,7 +90,7 @@ def simulate_one_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
 
     # Compute hospital admissions in week
     hosp_diff = population * rho * (sol.ys[:-1, 0] - sol.ys[1:, 0])
-    hosp_first = (5.0 * hosp_diff[0] - hosp_diff[1] - hosp_diff[2]) / 3.0   # linear interpolation of first 3 weeks
+    hosp_first = (5.0 * hosp_diff[0] - hosp_diff[1] - hosp_diff[2]) / 3.0   # first entry = linear interpolation of first 3 weeks
     weekly_hosp = jnp.concatenate([hosp_first[None], hosp_diff])
 
     return weekly_hosp
@@ -97,7 +100,7 @@ def simulate_one_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
 ## Write the wrapper batching the single season/state simulator over states and seasons ##
 ##########################################################################################
 
-def simulate_all_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0, t1, ts):
+def simulate_all_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0, t1, ts, stepsize):
 
     """
     Batched SIR simulation over all seasons and states.
@@ -123,6 +126,7 @@ def simulate_all_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
             None,   # t0
             None,   # t1
             None,   # ts
+            None,   # stepsize
         ),
     )
 
@@ -139,11 +143,12 @@ def simulate_all_jax(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0,
             None,   # population
             None,   # t0
             None,   # t1
-            0,   # ts
+            0,      # ts
+            None,   # stepsize
         ),
     )
 
-    return simulate_seasons(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0, t1, ts)
+    return simulate_seasons(beta, rho, fI, fR, delta_beta_daily, gamma, population, t0, t1, ts, stepsize)
 
 
 ###########################
@@ -308,7 +313,7 @@ def forward_sim_jax(eta, phi, omega, a_garch, b_garch, delta_beta_state_mean, rh
     """
     
     # Unpack static arguments
-    t0, t1, modifier_length, beta, gamma, population, ts = args_static
+    t0, t1, modifier_length, beta, gamma, population, ts, stepsize = args_static
 
     # 1. AR-GARCH recursion
     z, sigma2, eps = ar_garch_scan(eta=eta, phi=phi, omega=omega, a_garch=a_garch, b_garch=b_garch) # shape: (modifier, season, state)
@@ -331,6 +336,7 @@ def forward_sim_jax(eta, phi, omega, a_garch, b_garch, delta_beta_state_mean, rh
         t0=t0,
         t1=t1,
         ts=ts,
+        stepsize=stepsize
     )
 
     # shape: (season, state, observation)

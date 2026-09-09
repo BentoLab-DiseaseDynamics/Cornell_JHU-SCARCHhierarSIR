@@ -137,7 +137,7 @@ def training_model(data, weights, adj, phi, omega, a_garch, b_garch, spline_basi
     numpyro.deterministic("fR_global_mean", fR_global_mean)
 
     # State
-    fR_state_sd = numpyro.sample("fR_state_sd", dist.HalfNormal(1/10))
+    fR_state_sd = numpyro.sample("fR_state_sd", dist.HalfNormal(1/25))
     fR_state_raw = numpyro.sample("fR_state_raw", dist.Normal(0, 1).expand([n_states]))
     numpyro.deterministic("fR_state", jnp.exp(fR_state_sd * fR_state_raw))
 
@@ -186,12 +186,12 @@ def training_model(data, weights, adj, phi, omega, a_garch, b_garch, spline_basi
     n_basis = spline_basis.shape[1]
 
     # Spatially correlated spline coefficients
-    delta_beta_spline_raw = numpyro.sample("delta_beta_spline_raw", dist.Laplace(1/3).expand([n_basis, n_states]))
+    delta_beta_spline_raw = numpyro.sample("delta_beta_spline_raw", dist.Laplace(0.24).expand([n_basis, n_states]))  # 0.24 --> SD = 1/3, 0.20 --> SD = 1/4
     delta_beta_spline_coef = jnp.einsum("ij,bj->bi", L_cov_modifiers, delta_beta_spline_raw)
     numpyro.deterministic("delta_beta_spline_coef",  delta_beta_spline_coef)
 
     # Evaluate spline on every modifier week
-    delta_beta_state_mean = jnp.einsum("db,bs->ds", spline_basis, delta_beta_spline_coef)
+    delta_beta_state_mean = jnp.tanh(jnp.einsum("db,bs->ds", spline_basis, delta_beta_spline_coef)) # domain -1 to 1
     numpyro.deterministic("delta_beta_state_mean", delta_beta_state_mean)
 
     # ============================================================
@@ -387,9 +387,5 @@ def forecasting_model(data, weights, posterior_params, adj, sigma_grw, args_stat
 
         # Forecast observation model
         numpyro.sample("pred", dist.NegativeBinomial2(mean=H_future_rw, concentration=alpha[None, :, None]), obs=None)
-
-
-    #if data is None:
-    #    numpyro.sample("pred", dist.NegativeBinomial2(mean=H[:, :, n_observations:], concentration=alpha[None, :, None]), obs=None)
 
     pass
