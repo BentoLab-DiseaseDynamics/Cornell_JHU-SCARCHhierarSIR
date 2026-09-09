@@ -55,10 +55,10 @@ def main():
     challenge_start_reference_date = datetime(2026, 10, 10) # must be a saturday
     challenge_end_reference_date = datetime(2027, 5, 29)    # must be the last saturday of may
     season = '2025-2026'            
-    n_observations = 6              # use all data available in the forecast season
-    forecast_horizon = 4            # forecast sufficiently ahead to capture peaks
-    n_preoptim = 500
-    n_sample = 100
+    n_observations = 52              # use all data available in the forecast season
+    forecast_horizon = 20            # forecast sufficiently ahead to capture peaks
+    n_preoptim = 5000
+    n_sample = 250
     n_tune = 250
     sigma_grw = 0.01
 

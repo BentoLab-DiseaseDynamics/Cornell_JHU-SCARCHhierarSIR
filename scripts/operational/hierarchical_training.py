@@ -9,7 +9,7 @@ Licensed under CC BY-NC-SA 4.0
 """
 
 nuts_progress_bar = False
-n_chains = 8
+n_chains = 4
 
 # Suppress the specific UserWarning from JAX regarding int64 truncation
 import warnings
@@ -69,8 +69,8 @@ def main():
     ## sampling effort
     n_sample = 200
     n_burn = 300
-    target_accept = 0.65
-    n_preoptim = 250
+    target_accept = 0.80
+    n_preoptim = 25000
     training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
     ## use previous sampling
     find_new_map = False
