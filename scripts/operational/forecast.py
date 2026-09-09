@@ -55,8 +55,8 @@ def main():
     challenge_start_reference_date = datetime(2026, 10, 10) # must be a saturday
     challenge_end_reference_date = datetime(2027, 5, 29)    # must be the last saturday of may
     season = '2025-2026'            
-    n_observations = 5            # use all data available in the forecast season
-    forecast_horizon = 4           # forecast sufficiently ahead to capture peaks
+    n_observations = 5              # use all data available in the forecast season
+    forecast_horizon = 4            # forecast sufficiently ahead to capture peaks
     n_preoptim = 1000
     n_sample = 10
     n_tune = 10
@@ -74,6 +74,7 @@ def main():
     start_simulation = params["start_simulation"]
     modifier_ref_month = params["modifier_ref_month"]
     modifier_ref_day = params["modifier_ref_day"]
+    stepsize = params["stepsize"]
 
     # derived products
     ## convert to a list of start and enddates (datetime)
@@ -147,7 +148,7 @@ def main():
 
     weights = compute_season_weights(data[:,:,:n_observations])
 
-    args_static = (start_simulation, float(max(ts[:,-1])), modifier_length, jnp.full((n_seasons, n_states), beta), gamma, jnp.asarray(demo), ts)
+    args_static = (start_simulation, float(max(ts[:,-1])), modifier_length, jnp.full((n_seasons, n_states), beta), gamma, jnp.asarray(demo), ts, stepsize)
 
     # load forecasting model and its RV dimensions
     from SCARCHhierarSIR.numpyro_models import forecasting_model, forecasting_RV_dims

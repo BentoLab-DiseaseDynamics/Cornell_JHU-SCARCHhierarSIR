@@ -62,14 +62,15 @@ def main():
     start_simulation = -21 # (Sept 1)
     modifier_ref_month = 9
     modifier_ref_day = 21
+    stepsize = 3.5
     ## temporal extent of training
     n_observations = 39             # run last week of may
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
-    n_sample = 150
-    n_burn = 250
-    target_accept = 0.80
-    n_preoptim = 10000
+    n_sample = 200
+    n_burn = 300
+    target_accept = 0.7
+    n_preoptim = 250
     training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
     ## use previous sampling
     find_new_map = False
@@ -78,7 +79,7 @@ def main():
     output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     os.makedirs(output_folder, exist_ok=True)
     params = {"a_garch": a_garch, "b_garch": b_garch, "omega": omega, "phi": phi, "beta": 0.455, "gamma": 1 / 3.5, "n_modifiers": n_modifiers, "n_basis": n_basis, "modifier_length": modifier_length, "start_simulation": start_simulation,
-                "modifier_ref_month": modifier_ref_month, "modifier_ref_day": modifier_ref_day, "observations": n_observations, 'seasons': seasons}
+                "modifier_ref_month": modifier_ref_month, "modifier_ref_day": modifier_ref_day, "observations": n_observations, 'seasons': seasons, "stepsize": stepsize}
     with open(os.path.join(output_folder, "model_config.json"), "w") as f:
         json.dump(params, f, indent=4)
 
@@ -126,7 +127,7 @@ def main():
 
     spline_basis = jnp.asarray(dmatrix(f"bs(x, df={n_basis-1}, degree=3, include_intercept=False)", {"x": np.arange(n_modifiers)}, return_type="dataframe").to_numpy())
 
-    args_static = (start_simulation, max(ts[:,-1]), modifier_length, jnp.full((n_seasons, n_states), beta), gamma, jnp.asarray(demo), ts)
+    args_static = (start_simulation, max(ts[:,-1]), modifier_length, jnp.full((n_seasons, n_states), beta), gamma, jnp.asarray(demo), ts, stepsize)
 
     weights = compute_season_weights(jnp.asarray(data))
 
