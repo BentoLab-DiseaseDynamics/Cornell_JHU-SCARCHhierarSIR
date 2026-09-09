@@ -224,7 +224,7 @@ def main():
     mcmc.run(
         rng_key,
         **model_kwargs,
-        extra_fields=["potential_energy", "adapt_state.step_size"]
+        extra_fields=["potential_energy", "adapt_state.step_size", "diverging"]
     )
 
     # Chain collection prevents jax asynchronous dispatch from weirdly sequencing printouts
@@ -238,6 +238,7 @@ def main():
 
     print(f"..and finished sampling at: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
     print(f"total elapsed time: {elapsed_formatted}\n")
+    print(f"there were {int(jnp.sum(mcmc.get_extra_fields()["diverging"]))} divergent transitions")
 
     print('\nsaving traces\n')
 
@@ -347,6 +348,8 @@ def main():
         plt.savefig(os.path.join(output_folder,f'traces/trace-{var}.pdf'))
         plt.close()
 
+    # save the sampling summary
+    arviz.summary(trace, kind="all").to_csv(os.path.join(output_folder, 'traces/summary.csv'))
 
     # Sample posterior predictive
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -8,8 +8,8 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
-nuts_progress_bar = True
-n_chains = 8
+nuts_progress_bar = False
+n_chains = 4
 
 # Suppress the specific UserWarning from JAX regarding int64 truncation
 import warnings
@@ -55,9 +55,9 @@ def main():
     challenge_start_reference_date = datetime(2026, 10, 10) # must be a saturday
     challenge_end_reference_date = datetime(2027, 5, 29)    # must be the last saturday of may
     season = '2025-2026'            
-    n_observations = 12              # use all data available in the forecast season
+    n_observations = 6              # use all data available in the forecast season
     forecast_horizon = 4            # forecast sufficiently ahead to capture peaks
-    n_preoptim = 5000
+    n_preoptim = 500
     n_sample = 100
     n_tune = 250
     sigma_grw = 0.01
@@ -235,7 +235,7 @@ def main():
     mcmc.run(
         rng_key,
         **model_kwargs,
-        extra_fields=["potential_energy", "adapt_state.step_size"]
+        extra_fields=["potential_energy", "adapt_state.step_size", "diverging"]
     )
 
     # Chain collection prevents jax asynchronous dispatch from weirdly sequencing printouts
@@ -249,6 +249,7 @@ def main():
 
     print(f"..and finished sampling at: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
     print(f"total elapsed time: {elapsed_formatted}\n")
+    print(f"there were {int(jnp.sum(mcmc.get_extra_fields()["diverging"]))} divergent transitions")
 
     print('\nsaving traces\n')
 
@@ -277,6 +278,8 @@ def main():
     plt.savefig(os.path.join(output_folder,f'traces/step_sizes.pdf'))
     plt.close()
 
+    # save the sampling summary
+    arviz.summary(trace, kind="all").to_csv(os.path.join(output_folder, 'traces/summary.csv'))
 
     # Make posterior predictive
     # ~~~~~~~~~~~~~~~~~~~~~~~~~
