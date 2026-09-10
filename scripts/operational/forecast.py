@@ -249,7 +249,7 @@ def main():
 
     print(f"..and finished sampling at: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
     print(f"total elapsed time: {elapsed_formatted}\n")
-    print(f"there were {int(jnp.sum(mcmc.get_extra_fields()["diverging"]))} divergent transitions")
+    print(f"there were {int(jnp.sum(mcmc.get_extra_fields()["diverging"]))} divergent transitions\n")
 
     print('\nsaving traces\n')
 

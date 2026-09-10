@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from datetime import datetime, timedelta
 # jax and diffrax
 import jax
@@ -51,7 +52,7 @@ def main():
     # global parameters go here
     ## forecasting settings
     forecast_horizon = 4           # forecast sufficiently ahead to capture peaks
-    n_preoptim = 5000
+    n_preoptim = 2000
     n_sample = 250
     n_tune = 250
     sigma_grw = 0.01
@@ -292,7 +293,7 @@ def main():
 
             print(f"..and finished sampling at: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
             print(f"total elapsed time: {elapsed_formatted}\n")
-            print(f"there were {int(jnp.sum(mcmc.get_extra_fields()["diverging"]))} divergent transitions")
+            print(f"there were {int(jnp.sum(mcmc.get_extra_fields()["diverging"]))} divergent transitions\n")
 
             # convert to arviz
             trace = arviz.from_numpyro(mcmc, coords=coords, dims=forecasting_RV_dims)
@@ -381,7 +382,7 @@ def main():
             # Visualise
             dates_obs = dt[0,:n_observations]
             dates_pred = dt[0,n_observations:]
-            for s in range(len(state_fips_index)):
+            for s in range(len(state_fips_index)-1):
                 fig,ax=plt.subplots()
                 ## training
                 ax.plot(dates_obs, obs.median(dim=['chain', 'draw']).values[0,s,:], linewidth=1, color='black')
@@ -392,8 +393,8 @@ def main():
                 ax.fill_between(dates_obs,
                                 obs.quantile(dim=['chain', 'draw'], q=0.025).values[0,s,:],
                                 obs.quantile(dim=['chain', 'draw'], q=0.75).values[0,s,:],
-                                color='black', alpha=0.1)    
-                ax.scatter(dates_obs, data.values[0,s,:], marker='o', color='black')
+                                color='black', alpha=0.1)   
+                ax.scatter(all_dt, all_data[0,s,:], marker='o', color='black')
                 ## forecast
                 ax.plot(dates_pred, pred.median(dim=['chain', 'draw']).values[0,s,:], linewidth=1, color='red')
                 ax.fill_between(dates_pred,
@@ -403,7 +404,12 @@ def main():
                 ax.fill_between(dates_pred,
                                 pred.quantile(dim=['chain', 'draw'], q=0.25).values[0,s,:],
                                 pred.quantile(dim=['chain', 'draw'], q=0.75).values[0,s,:],
-                                color='red', alpha=0.1)    
+                                color='red', alpha=0.1)
+                ## x-axis
+                ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
+                ## figure
+                fig.autofmt_xdate() 
                 fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
                 fig.tight_layout()
                 os.makedirs(os.path.join(output_folder, 'goodness-fit'), exist_ok=True)
