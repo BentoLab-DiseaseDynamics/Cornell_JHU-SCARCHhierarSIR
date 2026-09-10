@@ -8,7 +8,8 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
-n_chains = 8
+nuts_progress_bar = False
+n_chains = 4
 
 # Suppress the specific UserWarning from JAX regarding int64 truncation
 import warnings
@@ -44,15 +45,15 @@ def main():
     abs_dir = os.path.dirname(__file__)
 
     # script iterates over combinations of trainings and seasons
-    training_names = ['test',]
+    training_names = ['exclude_None-a_garch_0.0-phi_0.5-omega_0.005-targetaccept_0.8',]
     seasons = ['2026-2027',]         
 
     # global parameters go here
     ## forecasting settings
     forecast_horizon = 4           # forecast sufficiently ahead to capture peaks
-    n_preoptim = 1000
-    n_sample = 25
-    n_tune = 25
+    n_preoptim = 5000
+    n_sample = 250
+    n_tune = 250
     sigma_grw = 0.01
     model_name = 'SCARCHhierarSIR'
     ## challenge parameters
@@ -212,6 +213,7 @@ def main():
                 weights=jnp.asarray(weights),
                 posterior_params=posterior_params,
                 adj=jnp.asarray(adj),
+                sigma_grw=sigma_grw,
                 args_static=args_static,
                 n_states=n_states,
                 n_seasons=n_seasons,
@@ -246,8 +248,11 @@ def main():
             # Sample numpyro model
             # ~~~~~~~~~~~~~~~~~~~~
 
-            print('\nstarting the NUTS sampler..\n')
-            
+            start_dt = datetime.now()
+            start_time = time.time()
+
+            print(f"\nstarting the NUTS sampler at: {start_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
+
             rng_key = jax.random.PRNGKey(int(time.time()))
             rng_key, rng_predict = jax.random.split(rng_key)
 
@@ -267,7 +272,7 @@ def main():
                 num_samples=n_sample,
                 num_chains=n_chains,
                 chain_method="parallel",
-                progress_bar=True,
+                progress_bar=nuts_progress_bar,
             )
 
             mcmc.run(
@@ -276,8 +281,18 @@ def main():
                 extra_fields=["potential_energy", "adapt_state.step_size"]
             )
 
-            print('\n..finished sampling\n')
-            print('\nsaving traces\n')
+            # Chain collection prevents jax asynchronous dispatch from weirdly sequencing printouts
+            jax.tree_util.tree_map(lambda x: x.block_until_ready(), mcmc.get_samples())
+
+            # Record the end timestamp and compute elapsed time
+            time.sleep(1)
+            end_dt = datetime.now()
+            elapsed_seconds = time.time() - start_time
+            elapsed_formatted = str(timedelta(seconds=int(elapsed_seconds)))
+
+            print(f"..and finished sampling at: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            print(f"total elapsed time: {elapsed_formatted}\n")
+            print(f"there were {int(jnp.sum(mcmc.get_extra_fields()["diverging"]))} divergent transitions")
 
             # convert to arviz
             trace = arviz.from_numpyro(mcmc, coords=coords, dims=forecasting_RV_dims)
