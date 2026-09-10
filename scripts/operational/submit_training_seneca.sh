@@ -4,7 +4,7 @@
 #SBATCH --partition=cac_cpu
 #SBATCH --time=48:00:00
 #SBATCH --nodes=1
-#SBATCH --n_tasks=1
+#SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=2gb
 #SBATCH --output=training_%j.log
