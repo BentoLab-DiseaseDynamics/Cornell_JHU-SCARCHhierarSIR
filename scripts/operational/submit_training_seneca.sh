@@ -3,7 +3,7 @@
 #SBATCH --account=arb24_0001
 #SBATCH --partition=cac_cpu
 #SBATCH --time=48:00:00
-#SBATCH --n_nodes=1
+#SBATCH --nodes=1
 #SBATCH --n_tasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=2gb
