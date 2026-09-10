@@ -1,5 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=training
+#SBATCH --account=cmavian
+#SBATCH --partition=hpg-default
 #SBATCH --time=01:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
