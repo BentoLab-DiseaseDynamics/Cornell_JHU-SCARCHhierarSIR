@@ -120,17 +120,16 @@ print('Starting loop...')
 training_acc_collect = []
 for training_name in training_names:
     print(f'\tWorking on training: {training_name}')
-    filenames = list_files_in_directory(os.path.join(sim_path, f'{training_name}/2026-2027/'))
-    filenames = [fn for fn in filenames if fn != '.DS_Store']
-    filenames.sort()
-    fn_acc_collect = []
-    for fn in filenames:
+    subfolders = get_subfolders(os.path.join(sim_path, f'{training_name}/2026-2027/'))
+    subfolders.sort()
+    sf_acc_collect = []
+    for sf in subfolders:
         # get the reference date
-        ref_date = datetime.strptime(fn[:10], "%Y-%m-%d")
+        ref_date = datetime.strptime(sf[15:], "%Y-%m-%d")
         # only use if larger than the eval date
         if ((ref_date >= eval_start_date) & (ref_date <= eval_end_date)):
             # get the forecasts
-            forecast = pd.read_csv(os.path.join(sim_path, f'{training_name}/2026-2027/', fn), dtype={'location': str}, parse_dates=['reference_date', 'target_end_date'], date_format='%Y-%m-%d')
+            forecast = pd.read_csv(os.path.join(sim_path, f'{training_name}/2026-2027/', sf, f'{ref_date.strftime("%Y-%m-%d")}-Cornell_JHU-SCARCHhierarSIR.csv'), dtype={'location': str}, parse_dates=['reference_date', 'target_end_date'], date_format='%Y-%m-%d')
             # slice right target and metrics
             forecast = forecast[((forecast['target'] == 'wk inc flu hosp') & (forecast['output_type'] == 'quantile'))]
             forecast['output_type_id'] = forecast['output_type_id'].astype(float)
@@ -155,8 +154,8 @@ for training_name in training_names:
                 fc = fc.merge(d.rename("obs"), left_on="target_end_date", right_index=True, how='left')
                 acc['MAE'] = np.abs((fc['value'] - fc['obs']).values)
                 loc_acc_collect.append(acc)              
-            fn_acc_collect.append(pd.concat(loc_acc_collect, axis=0))
-    training_acc_collect.append(pd.concat(fn_acc_collect, axis=0))
+            sf_acc_collect.append(pd.concat(loc_acc_collect, axis=0))
+    training_acc_collect.append(pd.concat(sf_acc_collect, axis=0))
 training_acc = pd.concat(training_acc_collect, axis=0)
 
 # omit horizon -1
