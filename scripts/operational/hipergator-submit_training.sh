@@ -14,13 +14,10 @@
 
 # Load any necessary modules
 module purge
-module load anaconda3
+module load conda
 
 # Activate the virtual environment
-source /opt/ohpc/pub/software/anaconda3/etc/profile.d/conda.sh
 conda activate SCARCH_HIERARSIR
-unset PYTHONHOME
-unset PYTHONPATH
 
 # Run your Python script
 python -u hierarchical_training.py
