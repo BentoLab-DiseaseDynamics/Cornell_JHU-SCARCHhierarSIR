@@ -14,6 +14,7 @@ abs_dir = os.path.dirname(__file__)
 sim_path = os.path.join(abs_dir, '../../data/interim/calibration/incremental_forecast')
 data_path = os.path.join(abs_dir, '../../data/interim/cases/NHSN-HRD_archive/synthetic/early_season_decrease/NHSN-HRD_reference-date-2026-08-15_gathered-2026-08-12-16-21-04.parquet.gzip')
                         
+log_WIS = True
 
 # start of evaluation
 eval_start_date = datetime(2026, 10, 15)
@@ -145,7 +146,10 @@ for training_name in training_names:
                 # slice the right location in forecast
                 fc = forecast[forecast['location'] == loc]
                 # compute the WIS scores
-                acc = compute_WIS(fc, d)
+                if log_WIS == True:
+                    d = np.log1p(d)
+                    fc['value'] = np.log1p(fc['value'])
+                acc = compute_WIS(fc,d)
                 acc = acc.reset_index()
                 acc['location'] = loc
                 acc['training_name'] = training_name
