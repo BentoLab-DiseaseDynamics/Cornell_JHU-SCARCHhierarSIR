@@ -6,7 +6,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=2gb
+#SBATCH --mem-per-cpu=4gb
 #SBATCH --output=training_%j.log
 
 # Submit as follows:
