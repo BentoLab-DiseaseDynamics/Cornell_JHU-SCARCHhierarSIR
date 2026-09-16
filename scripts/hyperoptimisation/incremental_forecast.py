@@ -46,14 +46,14 @@ def main():
     abs_dir = os.path.dirname(__file__)
 
     # script iterates over combinations of trainings and seasons
-    training_names = ['exclude_None-a_garch_0.0-phi_0.5-omega_0.005-targetaccept_0.8',]
+    training_names = ['exclude_None-a_garch_0.4-phi_0.5-omega_0.005-targetaccept_0.85',]
     seasons = ['2026-2027',]         
 
     # global parameters go here
     ## forecasting settings
     forecast_horizon = 4           # forecast sufficiently ahead to capture peaks
     n_preoptim = 2000
-    n_sample = 250
+    n_sample = 100
     n_tune = 250
     sigma_grw = 0.01
     model_name = 'SCARCHhierarSIR'
