@@ -52,7 +52,7 @@ def main():
     ## model-structural
     a_garch = 0.0
     b_garch = 0.0
-    omega = 0.005
+    omega = 0.0075
     phi = 0.50
     beta = 0.455
     gamma = 1/3.5
@@ -68,8 +68,8 @@ def main():
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
     n_sample = 200
-    n_burn = 300
-    target_accept = 0.80
+    n_burn = 500
+    target_accept = 0.85
     n_preoptim = 25000
     training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
     ## use previous sampling
@@ -238,7 +238,7 @@ def main():
 
     print(f"..and finished sampling at: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
     print(f"total elapsed time: {elapsed_formatted}\n")
-    print(f"there were {int(jnp.sum(mcmc.get_extra_fields()["diverging"]))} divergent transitions")
+    print(f"there were {int(jnp.sum(mcmc.get_extra_fields()["diverging"]))} divergent transitions\n")
 
     print('\nsaving traces\n')
 

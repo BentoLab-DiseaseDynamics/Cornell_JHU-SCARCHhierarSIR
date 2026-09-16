@@ -8,7 +8,8 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
-n_chains = 8
+nuts_progress_bar = False
+n_chains = 4
 
 # Suppress the specific UserWarning from JAX regarding int64 truncation
 import warnings
@@ -25,6 +26,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from datetime import datetime, timedelta
 # jax and diffrax
 import jax
@@ -44,15 +46,15 @@ def main():
     abs_dir = os.path.dirname(__file__)
 
     # script iterates over combinations of trainings and seasons
-    training_names = ['test',]
+    training_names = ['exclude_None-a_garch_0.4-phi_0.5-omega_0.005-targetaccept_0.85',]
     seasons = ['2026-2027',]         
 
     # global parameters go here
     ## forecasting settings
     forecast_horizon = 4           # forecast sufficiently ahead to capture peaks
-    n_preoptim = 1000
-    n_sample = 25
-    n_tune = 25
+    n_preoptim = 2000
+    n_sample = 100
+    n_tune = 250
     sigma_grw = 0.01
     model_name = 'SCARCHhierarSIR'
     ## challenge parameters
@@ -212,6 +214,7 @@ def main():
                 weights=jnp.asarray(weights),
                 posterior_params=posterior_params,
                 adj=jnp.asarray(adj),
+                sigma_grw=sigma_grw,
                 args_static=args_static,
                 n_states=n_states,
                 n_seasons=n_seasons,
@@ -246,8 +249,11 @@ def main():
             # Sample numpyro model
             # ~~~~~~~~~~~~~~~~~~~~
 
-            print('\nstarting the NUTS sampler..\n')
-            
+            start_dt = datetime.now()
+            start_time = time.time()
+
+            print(f"\nstarting the NUTS sampler at: {start_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
+
             rng_key = jax.random.PRNGKey(int(time.time()))
             rng_key, rng_predict = jax.random.split(rng_key)
 
@@ -267,7 +273,7 @@ def main():
                 num_samples=n_sample,
                 num_chains=n_chains,
                 chain_method="parallel",
-                progress_bar=True,
+                progress_bar=nuts_progress_bar,
             )
 
             mcmc.run(
@@ -276,8 +282,18 @@ def main():
                 extra_fields=["potential_energy", "adapt_state.step_size"]
             )
 
-            print('\n..finished sampling\n')
-            print('\nsaving traces\n')
+            # Chain collection prevents jax asynchronous dispatch from weirdly sequencing printouts
+            jax.tree_util.tree_map(lambda x: x.block_until_ready(), mcmc.get_samples())
+
+            # Record the end timestamp and compute elapsed time
+            time.sleep(1)
+            end_dt = datetime.now()
+            elapsed_seconds = time.time() - start_time
+            elapsed_formatted = str(timedelta(seconds=int(elapsed_seconds)))
+
+            print(f"..and finished sampling at: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            print(f"total elapsed time: {elapsed_formatted}\n")
+            print(f"there were {int(jnp.sum(mcmc.get_extra_fields()["diverging"]))} divergent transitions\n")
 
             # convert to arviz
             trace = arviz.from_numpyro(mcmc, coords=coords, dims=forecasting_RV_dims)
@@ -366,7 +382,7 @@ def main():
             # Visualise
             dates_obs = dt[0,:n_observations]
             dates_pred = dt[0,n_observations:]
-            for s in range(len(state_fips_index)):
+            for s in range(len(state_fips_index)-1):
                 fig,ax=plt.subplots()
                 ## training
                 ax.plot(dates_obs, obs.median(dim=['chain', 'draw']).values[0,s,:], linewidth=1, color='black')
@@ -377,8 +393,8 @@ def main():
                 ax.fill_between(dates_obs,
                                 obs.quantile(dim=['chain', 'draw'], q=0.025).values[0,s,:],
                                 obs.quantile(dim=['chain', 'draw'], q=0.75).values[0,s,:],
-                                color='black', alpha=0.1)    
-                ax.scatter(dates_obs, data.values[0,s,:], marker='o', color='black')
+                                color='black', alpha=0.1)   
+                ax.scatter(all_dt, all_data[0,s,:], marker='o', color='black')
                 ## forecast
                 ax.plot(dates_pred, pred.median(dim=['chain', 'draw']).values[0,s,:], linewidth=1, color='red')
                 ax.fill_between(dates_pred,
@@ -388,7 +404,12 @@ def main():
                 ax.fill_between(dates_pred,
                                 pred.quantile(dim=['chain', 'draw'], q=0.25).values[0,s,:],
                                 pred.quantile(dim=['chain', 'draw'], q=0.75).values[0,s,:],
-                                color='red', alpha=0.1)    
+                                color='red', alpha=0.1)
+                ## x-axis
+                ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
+                ## figure
+                fig.autofmt_xdate() 
                 fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
                 fig.tight_layout()
                 os.makedirs(os.path.join(output_folder, 'goodness-fit'), exist_ok=True)

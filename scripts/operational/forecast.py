@@ -48,13 +48,13 @@ def main():
 
     # global parameters go here
     ## training metadata
-    target_accept = 0.65
-    training_name = f'exclude_None-a_garch_0.0-phi_0.5-omega_0.005-targetaccept_{target_accept}'
+    target_accept = 0.85
+    training_name = f'exclude_None-a_garch_0.3-phi_0.5-omega_0.005-targetaccept_{target_accept}'
     training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     ## forecasting settings
     challenge_start_reference_date = datetime(2026, 10, 10) # must be a saturday
     challenge_end_reference_date = datetime(2027, 5, 29)    # must be the last saturday of may
-    season = '2025-2026'            
+    season = '2026-2027'            
     n_observations = 52              # use all data available in the forecast season
     forecast_horizon = 20            # forecast sufficiently ahead to capture peaks
     n_preoptim = 5000
@@ -109,7 +109,6 @@ def main():
 
     # output folder name
     output_folder = os.path.join(abs_dir, f'../../data/interim/calibration/forecast/{training_name}/reference_date-{reference_date.strftime('%Y-%m-%d')}/')
-
 
     # Get the hyperparameters
     # ~~~~~~~~~~~~~~~~~~~~~~~
@@ -249,7 +248,7 @@ def main():
 
     print(f"..and finished sampling at: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
     print(f"total elapsed time: {elapsed_formatted}\n")
-    print(f"there were {int(jnp.sum(mcmc.get_extra_fields()["diverging"]))} divergent transitions")
+    print(f"there were {int(jnp.sum(mcmc.get_extra_fields()["diverging"]))} divergent transitions\n")
 
     print('\nsaving traces\n')
 
