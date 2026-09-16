@@ -38,7 +38,6 @@ jobs:
         shell: bash -l {0}
         run: |
           conda activate SCARCH_HIERARSIR
-          conda uninstall jaxlib
           pip install -e . --force-reinstall
 
       - name: Compute forecasts 
