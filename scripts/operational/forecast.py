@@ -102,7 +102,7 @@ def main():
 
     # get data
     reference_date, data, dt, ts, n_observations = get_NHSN_HRD_data(start_calibrations, modifier_reference_dates, n_observations,
-                                                                    type = 'preliminary',
+                                                                    type = 'preliminary_backfilled',
                                                                     forecast_horizon=forecast_horizon,
                                                                     state_fips=state_fips_index['fips_state'].values) # (n_season, n_variables, n_observations)
     reference_date = dt[-1][-1] + timedelta(weeks=1) - timedelta(weeks=forecast_horizon)    # compute true reference date based on data instead of filename
