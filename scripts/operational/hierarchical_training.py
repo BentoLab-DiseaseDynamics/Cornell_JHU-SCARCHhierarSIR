@@ -56,12 +56,12 @@ def main():
     phi = 0.50
     beta = 0.455
     gamma = 1/3.5
-    n_basis = 18
-    n_modifiers = 33
+    n_basis = 19
+    n_modifiers = 35
     modifier_length = 7
     start_simulation = -21 # (Sept 1)
     modifier_ref_month = 9
-    modifier_ref_day = 21
+    modifier_ref_day = 7
     stepsize = 3.5
     ## temporal extent of training
     n_observations = 39             # run last week of may
