@@ -52,7 +52,7 @@ def main():
     ## model-structural
     a_garch = 0.0
     b_garch = 0.0
-    omega = 0.0075
+    omega = 0.00225 # equivalent to 0.005 in AR(1) with phi=0.5
     phi = 0.50
     beta = 0.455
     gamma = 1/3.5
