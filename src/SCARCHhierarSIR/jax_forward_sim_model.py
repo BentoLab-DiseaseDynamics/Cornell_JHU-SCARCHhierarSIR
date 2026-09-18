@@ -232,56 +232,96 @@ def make_delta_beta_daily_batched(delta_beta, duration, t0, t1, sigma=1):
 
 def ar_garch_scan(eta, phi, omega, a_garch, b_garch):
     """
+    Simulate a critically damped AR(2) process with GARCH(1,1)
+    innovations using a JAX scan.
+
+    The latent process follows the critically damped AR(2):
+
+        z_t = 2 * phi * z_{t-1} - phi**2 * z_{t-2} + eps_t
+
+    giving a repeated AR root at phi.
+
+    The innovations follow:
+
+        eps_t = eta_t * sqrt(sigma2_t)
+
+    where eta_t ~ Normal(0, 1), and the conditional variance follows
+    a GARCH(1,1) process:
+
+        sigma2_t = omega + a_garch * eps_{t-1}**2 + b_garch * sigma2_{t-1}.
+
     Parameters
     ----------
     eta : jax.Array
-        Shape (T-1, season, state)
+        Standard-normal innovations driving the process.
+        Shape (T-1, season, state).
 
     phi : scalar
-        AR(1) coefficient.
+        Persistence parameter of the critically damped AR(2) process.
+        The AR roots are both equal to phi. Stationarity requires
+        |phi| < 1.
 
     omega : scalar
-        Baseline noise (= sigma if a/b garch = 0)
+        GARCH intercept / baseline conditional variance.
 
     a_garch : scalar
-        ARCH coefficient.
+        ARCH coefficient controlling the effect of the previous
+        innovation squared on the current conditional variance.
 
     b_garch : scalar
-        GARCH coefficient.
+        GARCH coefficient controlling the persistence of the
+        conditional variance.
 
     Returns
     -------
     z : jax.Array
-        Shape (T, season, state)
+        Simulated latent AR(2) process.
+        Shape (T, season, state).
 
     sigma2 : jax.Array
-        Shape (T, season, state)
+        Conditional innovation variance at each time step.
+        Shape (T, season, state).
 
     eps : jax.Array
-        Shape (T, season, state)
+        Innovations entering the AR(2) process:
+            eps_t = eta_t * sqrt(sigma2_t)
+        Shape (T, season, state).
+
+    Notes
+    -----
+    The process is initialized with:
+
+        z_{-1} = 0
+        z_0  = 0
+        eps_0 = 0
+        sigma2_0 = omega.
+
+    The initial z values are therefore deterministic rather than
+    drawn from the stationary distribution of the AR(2) process.
+
     """
 
-    # Construct initial statees
+
     z0 = jnp.zeros([eta.shape[1], eta.shape[2]])
+    z_minus1 = jnp.zeros([eta.shape[1], eta.shape[2]])
+
     eps0 = jnp.zeros([eta.shape[1], eta.shape[2]])
     sigma20 = omega * jnp.ones_like(eps0)
 
-    # Run the recursion
     def step(carry, eta_t):
 
-        prev_z, prev_sigma2, prev_eps = carry
+        prev_z, prev_prev_z, prev_sigma2, prev_eps = carry
 
-        sigma2 = omega + a_garch * prev_eps**2 + b_garch * prev_sigma2 # GARCH(1,1)
+        sigma2 = omega + a_garch * prev_eps**2 + b_garch * prev_sigma2
 
-        eps = eta_t * jnp.sqrt(sigma2) # innovation
+        eps = eta_t * jnp.sqrt(sigma2)
 
-        z = phi * prev_z + eps # AR(1)
+        z = 2.0 * phi * prev_z - phi**2 * prev_prev_z + eps
 
-        return (z,sigma2,eps,), (z,sigma2,eps,)
+        return (z, prev_z, sigma2, eps), (z, sigma2, eps)
 
-    _, (z_seq, sigma2_seq, eps_seq) = jax.lax.scan(step,(z0, sigma20, eps0),eta)
+    _, (z_seq, sigma2_seq, eps_seq) = jax.lax.scan(step,(z0, z_minus1, sigma20, eps0), eta)
 
-    # Concatenate the initial states
     z = jnp.concatenate([z0[None, ...], z_seq], axis=0)
     sigma2 = jnp.concatenate([sigma20[None, ...], sigma2_seq], axis=0)
     eps = jnp.concatenate([eps0[None, ...], eps_seq], axis=0)
