@@ -95,24 +95,27 @@ data = pd.DataFrame({'value': data[0].reshape(-1)}, index=multi_index).reset_ind
 data = pd.merge(data, state_fips_index[['fips_state', 'population']],  on='fips_state', how='left')
 data['value_per_100k'] = (data['value'] / data['population']) * 10E5
 
-# get the previous season data
-start_date_prev = datetime(int(season[0:4])-1, plot_start_month, 1)
-_, data_prev, dt_prev, ts, n_observations = get_NHSN_HRD_data([start_date_prev,], [datetime(2026,1,1),], 1e4, type = 'preliminary_backfilled', forecast_horizon=0) # (n_season, n_variables, n_observations)
+# get the previous seasons data
+data_prev_list = []
+for i in range(1,4):
+    start_date_prev = datetime(int(season[0:4])-i, plot_start_month, 1)
+    _, data_prev, dt_prev, ts, n_observations = get_NHSN_HRD_data([start_date_prev,], [datetime(2026,1,1),], 1e4, type = 'preliminary_backfilled', forecast_horizon=0) # (n_season, n_variables, n_observations)
 
-# align it with this year
-end_month = (reference_date + timedelta(weeks=5)).month
-end_day = (reference_date + timedelta(weeks=5)).day
-dt_prev= dt_prev[0]
-dt_prev = dt_prev[dt_prev <= start_date_prev + timedelta(weeks=len(dt[0]) + 5)]
-data_prev = data_prev[0, :, :len(dt_prev)]
+    # align it with this year
+    end_month = (reference_date + timedelta(weeks=5)).month
+    end_day = (reference_date + timedelta(weeks=5)).day
+    dt_prev= dt_prev[0]
+    dt_prev = dt_prev[dt_prev <= start_date_prev + timedelta(weeks=len(dt[0]) + 5)]
+    data_prev = data_prev[0, :, :len(dt_prev)]
 
-multi_index = pd.MultiIndex.from_product([state_fips_index['fips_state'], dt_prev], names=['fips_state', 'date'])
-data_prev = pd.DataFrame({'value': data_prev.reshape(-1)}, index=multi_index).reset_index()
-data_prev['date'] = data_prev['date'] + timedelta(days=365)
+    multi_index = pd.MultiIndex.from_product([state_fips_index['fips_state'], dt_prev], names=['fips_state', 'date'])
+    data_prev = pd.DataFrame({'value': data_prev.reshape(-1)}, index=multi_index).reset_index()
+    data_prev['date'] = data_prev['date'] + timedelta(days=i*365)
 
-# normalize it
-data_prev = pd.merge(data_prev, state_fips_index[['fips_state', 'population']],  on='fips_state', how='left')
-data_prev['value_per_100k'] = (data_prev['value'] / data_prev['population']) * 10E5
+    # normalize it
+    data_prev = pd.merge(data_prev, state_fips_index[['fips_state', 'population']],  on='fips_state', how='left')
+    data_prev['value_per_100k'] = (data_prev['value'] / data_prev['population']) * 10E5
+    data_prev_list.append(data_prev)
 
 # get the latest forecast (For now, assuming there is only )
 forecast = pd.read_csv(latest_forecast_file, index_col=0)
@@ -164,7 +167,7 @@ for name_state, fips_state in zip(name_state_list, fips_state_list):
 
     # slice data
     data_slice = data[data['fips_state'] == fips_state]
-    data_prev_slice = data_prev[data_prev['fips_state'] == fips_state]
+    
 
     # inset axes
     iax = inset_axes(ax, width=1, height=0.7, loc="center",
@@ -176,7 +179,9 @@ for name_state, fips_state in zip(name_state_list, fips_state_list):
     iax.fill_between(fc["target_end_date"].unique(), fc.loc[fc['output_type_id'] == 0.25, 'value'], fc.loc[fc['output_type_id'] == 0.75, 'value'], color="green", alpha=0.2)
     iax.fill_between(fc["target_end_date"].unique(), fc.loc[fc['output_type_id'] == 0.025, 'value'], fc.loc[fc['output_type_id'] == 0.975, 'value'], color="green", alpha=0.1)
     iax.scatter(data_slice['date'], data_slice['value_per_100k'], color='black', alpha=1, linestyle='None', facecolors='black', s=10, linewidth=1)
-    iax.plot(data_prev_slice['date'], data_prev_slice['value_per_100k'], color='red', alpha=1, linewidth=0.5)
+    for data_prev in data_prev_list:
+        data_prev_slice = data_prev[data_prev['fips_state'] == fips_state]
+        iax.plot(data_prev_slice['date'], data_prev_slice['value_per_100k'], color='red', alpha=0.5, linewidth=0.5)
     
     # inside your loop, after plotting into iax
     iax.xaxis.set_major_locator(mdates.MonthLocator())
@@ -185,7 +190,7 @@ for name_state, fips_state in zip(name_state_list, fips_state_list):
     iax.tick_params(axis='x', labelsize=5, rotation=0)
     iax.tick_params(axis='y', labelsize=5)
     iax.set_xlim([start_date, end_date+timedelta(weeks=1)])
-    iax.set_ylim([-10,250])
+    iax.set_ylim([-10,125])
 
     # put state in
     iax.text(
