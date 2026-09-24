@@ -49,7 +49,7 @@ def main():
     # global parameters go here
     ## training metadata
     target_accept = 0.85
-    training_name = f'exclude_None-a_garch_0.3-phi_0.5-omega_0.005-targetaccept_{target_accept}'
+    training_name = f'exclude_None-a_garch_0.0-phi_0.375-omega_0.005-targetaccept_{target_accept}'
     training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     ## forecasting settings
     challenge_start_reference_date = datetime(2026, 10, 10) # must be a saturday
@@ -422,7 +422,7 @@ def main():
     hv_out = hv_out.fillna('NA')
 
     # save result
-    hv_out.to_csv(os.path.join(output_folder, reference_date.strftime('%Y-%m-%d')+'-Cornell_JHU'+'-'+f'{model_name}.csv'), index=False)
+    hv_out.to_csv(os.path.join(output_folder, '..', reference_date.strftime('%Y-%m-%d')+'-Cornell_JHU'+'-'+f'{model_name}.csv'), index=False)
 
     print(f'\nforecasting complete!\n')
 

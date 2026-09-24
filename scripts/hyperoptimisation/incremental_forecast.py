@@ -46,7 +46,7 @@ def main():
     abs_dir = os.path.dirname(__file__)
 
     # script iterates over combinations of trainings and seasons
-    training_names = ['exclude_None-a_garch_0.4-phi_0.5-omega_0.005-targetaccept_0.85',]
+    training_names = ['testAR2_exclude_None-a_garch_0.2-phi_0.375-omega_0.005-targetaccept_0.85',]
     seasons = ['2026-2027',]         
 
     # global parameters go here

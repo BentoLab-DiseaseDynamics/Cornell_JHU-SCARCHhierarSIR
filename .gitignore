@@ -174,7 +174,6 @@ dmypy.json
 
 ## Training
 data/interim/calibration/hierarchical-training/exclude_None-*
-data/interim/calibration/hierarchical-training/exclude_None-/cluster_*
 
 ## Forecasting
 data/interim/calibration/forecast/exclude_None-*/reference_date-*
