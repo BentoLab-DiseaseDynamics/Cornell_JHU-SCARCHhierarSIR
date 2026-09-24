@@ -326,10 +326,10 @@ def main():
     # Visualise goodness-of-fit
     # ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    # sum over all states to get USA totals
-    data = xr.concat([posterior_predictive.observed_data['obs'], posterior_predictive.observed_data['obs'].sum(dim="state").assign_coords(state="USA").expand_dims("state")], dim="state")
-    obs = xr.concat([posterior_predictive.posterior_predictive['obs'], posterior_predictive.posterior_predictive['obs'].sum(dim="state").assign_coords(state="USA").expand_dims("state")], dim="state")
-    pred = xr.concat([posterior_predictive.posterior_predictive['pred'], posterior_predictive.posterior_predictive['pred'].sum(dim="state").assign_coords(state="USA").expand_dims("state")], dim="state")
+    # sum over all states to get US totals
+    data = xr.concat([posterior_predictive.observed_data['obs'], posterior_predictive.observed_data['obs'].sum(dim="state").assign_coords(state="US").expand_dims("state")], dim="state")
+    obs = xr.concat([posterior_predictive.posterior_predictive['obs'], posterior_predictive.posterior_predictive['obs'].sum(dim="state").assign_coords(state="US").expand_dims("state")], dim="state")
+    pred = xr.concat([posterior_predictive.posterior_predictive['pred'], posterior_predictive.posterior_predictive['pred'].sum(dim="state").assign_coords(state="US").expand_dims("state")], dim="state")
 
     # expand fips index
     state_fips_index["fips_state"] = state_fips_index["fips_state"].map("{:02d}".format)
