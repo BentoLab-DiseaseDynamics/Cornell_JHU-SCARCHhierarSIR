@@ -10,6 +10,10 @@ Contains an overview of the raw data sources, and the conversion scripts used to
 
 + `sc-est2023-agesex-civ.csv`: Contains the 2020-2023 US state population estimates. Downloaded from: https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=https://www2.census.gov/programs-surveys/popest/datasets/2020-2023/state/asrh/sc-est2023-agesex-civ.csv&ved=2ahUKEwjel9Xo4euTAxWFg4kEHQxFIqIQFnoECAwQAQ&usg=AOvVaw0uXd1QJzPHUinJjBpFRA-1
 
+### Geography
+
++ `cb_2018_us_state_20m`: US state shape files. Downloaded from: https://www.census.gov/geographies/mapping-files/time-series/geo/carto-boundary-file.html 
+
 ## Interim
 
 ### Demography
@@ -19,8 +23,6 @@ Contains an overview of the raw data sources, and the conversion scripts used to
 ### Geography
 
 + `adjacency_matrix.csv`: Adjacency matrix of all US states.
-
-+ `cluster.csv`: Encodes the clusters of US states the training/forecasting loop over. Must start with cluster 0, then 1, 2, 3, etc. The column `all` encodes having no clusters (run model for whole U.S.), while `census_regions` follows the four U.S. census regions. Shares the column `abbrevation_state` from `~/data/interim/demography/demography.csv` as index.
 
 ### NHSN-HRD_archive
 
@@ -45,3 +47,4 @@ To be filled out later.
 ### Geography
 
 + `make-adjacency_matrix.py`: Script to build an adjacency matrix of the US states. Uses a hard-coded dictionary of neighbours.
+
