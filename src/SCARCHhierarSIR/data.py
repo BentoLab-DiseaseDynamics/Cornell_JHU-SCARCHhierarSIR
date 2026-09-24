@@ -274,7 +274,7 @@ def get_NHSN_HRD_data(
 
         # determine the data's end date
         user_end_date = start_calibration + timedelta(weeks=n_observations)
-        if forecast_horizon:
+        if forecast_horizon >= 0:
             # assume 'forecasting' mode, only one season, number of observations can exceed the end of the data
             last_existing_date = df["date"].max()
             if user_end_date <= last_existing_date:
