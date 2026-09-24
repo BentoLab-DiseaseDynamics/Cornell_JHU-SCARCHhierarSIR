@@ -333,7 +333,7 @@ def main():
 
     # expand fips index
     state_fips_index["fips_state"] = state_fips_index["fips_state"].map("{:02d}".format)
-    new_row = pd.DataFrame([{"abbreviation_state": "USA", "name_state": "united states", "fips_state": "USA"}])
+    new_row = pd.DataFrame([{"abbreviation_state": "US", "name_state": "united states", "fips_state": "US"}])
     state_fips_index = pd.concat([state_fips_index, new_row], ignore_index=True)
 
 
