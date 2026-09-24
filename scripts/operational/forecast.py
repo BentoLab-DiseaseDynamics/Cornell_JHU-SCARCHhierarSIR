@@ -143,7 +143,7 @@ def main():
     # Build numpyro model
     # ~~~~~~~~~~~~~~~~~~~
 
-    print('\ncompiling numpyro model\n')
+    print('\ncompiling numpyro model\n', flush=True)
 
     weights = compute_season_weights(data[:,:,:n_observations])
 
@@ -182,7 +182,7 @@ def main():
     # ~~~~~~~~~~~~~~~~~~~~
 
     print('pre-optimizing MAP\n')
-    print('(iter, score)')
+    print('(iter, score)', flush=True)
 
     # run optimisation
     map_params = find_map(forecasting_model, model_kwargs, n_preoptim)
@@ -207,7 +207,7 @@ def main():
     start_dt = datetime.now()
     start_time = time.time()
 
-    print(f"\nstarting the NUTS sampler at: {start_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
+    print(f"\nstarting the NUTS sampler at: {start_dt.strftime('%Y-%m-%d %H:%M:%S')}\n", flush=True)
 
     rng_key = jax.random.PRNGKey(int(time.time()))
     rng_key, rng_predict = jax.random.split(rng_key)
@@ -246,11 +246,11 @@ def main():
     elapsed_seconds = time.time() - start_time
     elapsed_formatted = str(timedelta(seconds=int(elapsed_seconds)))
 
-    print(f"..and finished sampling at: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}\n")
+    print(f"..and finished sampling at: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}\n", flush=True)
     print(f"total elapsed time: {elapsed_formatted}\n")
-    print(f"there were {int(jnp.sum(mcmc.get_extra_fields()["diverging"]))} divergent transitions\n")
+    print(f"there were {int(jnp.sum(mcmc.get_extra_fields()["diverging"]))} divergent transitions\n", flush=True)
 
-    print('\nsaving traces\n')
+    print('\nsaving traces\n', flush=True)
 
     # convert to arviz
     trace = arviz.from_numpyro(mcmc, coords=coords, dims=forecasting_RV_dims)
@@ -283,7 +283,7 @@ def main():
     # Make posterior predictive
     # ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    print('\ngenerating posterior predictive\n')
+    print('\ngenerating posterior predictive\n', flush=True)
 
     predictive = Predictive(
         forecasting_model,
@@ -337,7 +337,7 @@ def main():
     state_fips_index = pd.concat([state_fips_index, new_row], ignore_index=True)
 
 
-    print('\ngenerating diagnostic plots\n')
+    print('\ngenerating diagnostic plots\n', flush=True)
 
     # Visualise
     dates_obs = dt[0,:n_observations]
@@ -377,7 +377,7 @@ def main():
     # Send simulation output to Hubverse format
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    print('\nconverting simulation output to Hubverse format\n')
+    print('\nconverting simulation output to Hubverse format\n', flush=True)
 
     # remove 'seasons' dimension and flatten the 'chain' and 'draw' dimensions into 'draw'
     ## [forecast]
@@ -424,7 +424,7 @@ def main():
     # save result
     hv_out.to_csv(os.path.join(output_folder, '..', reference_date.strftime('%Y-%m-%d')+'-Cornell_JHU'+'-'+f'{model_name}.csv'), index=False)
 
-    print(f'\nforecasting complete!\n')
+    print(f'\nforecasting complete!\n', flush=True)
 
 # execute script
 if __name__ == "__main__":
