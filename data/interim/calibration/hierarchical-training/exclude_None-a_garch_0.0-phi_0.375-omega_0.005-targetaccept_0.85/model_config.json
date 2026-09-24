@@ -1,0 +1,22 @@
+{
+    "a_garch": 0.0,
+    "b_garch": 0.0,
+    "omega": 0.005,
+    "phi": 0.375,
+    "beta": 0.455,
+    "gamma": 0.2857142857142857,
+    "n_modifiers": 35,
+    "n_basis": 19,
+    "modifier_length": 7,
+    "start_simulation": -21,
+    "modifier_ref_month": 9,
+    "modifier_ref_day": 7,
+    "observations": 39,
+    "seasons": [
+        "2023-2024",
+        "2024-2025",
+        "2025-2026"
+    ],
+    "stepsize": 3.5,
+    "target_accept": 0.85
+}
