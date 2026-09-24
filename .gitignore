@@ -173,7 +173,8 @@ dmypy.json
 *.blg
 
 ## Training
-data/interim/calibration/hierarchical-training/exclude_None-*
+data/interim/calibration/hierarchical-training/*
+!data/interim/calibration/hierarchical-training/exclude_None-a_garch_0.2-phi_0.375-omega_0.005-targetaccept_0.85
 
 ## Forecasting
 data/interim/calibration/forecast/exclude_None-*/reference_date-*
