@@ -422,7 +422,7 @@ def main():
     hv_out = hv_out.fillna('NA')
 
     # save result
-    hv_out.to_csv(os.path.join(output_folder, reference_date.strftime('%Y-%m-%d')+'-Cornell_JHU'+'-'+f'{model_name}.csv'), index=False)
+    hv_out.to_csv(os.path.join(output_folder, '..', reference_date.strftime('%Y-%m-%d')+'-Cornell_JHU'+'-'+f'{model_name}.csv'), index=False)
 
     print(f'\nforecasting complete!\n')
 
