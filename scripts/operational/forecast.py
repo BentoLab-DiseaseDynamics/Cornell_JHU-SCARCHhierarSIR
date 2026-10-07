@@ -419,7 +419,9 @@ def main():
 
     # merge all metrics together
     hv_out = pd.concat([hv_out_admissions, hv_out_peak_timing, hv_out_peak_admissions], axis=0, ignore_index=True)
-    hv_out = hv_out.fillna('NA')
+
+    # missing values in peak estimate horizon column forces change from int64 to float64
+    hv_out['horizon'] = hv_out['horizon'].astype('Int64')
 
     # save result
     hv_out.to_csv(os.path.join(output_folder, '..', reference_date.strftime('%Y-%m-%d')+'-Cornell_JHU'+'-'+f'{model_name}.csv'), index=False)
