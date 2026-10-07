@@ -76,7 +76,7 @@ jobs:
           git push \
             https://x-access-token:${SUBMISSION_PUSH_FORECAST_TO_CHALLENGE_REPO_FORK_TOKEN}@github.com/BentoLab-DiseaseDynamics/FluSight-forecast-hub.git \
             main \
-            --force-with-lease
+            --force
 
       # Create forecast branch from upstream/main
       - name: Create forecast branch
