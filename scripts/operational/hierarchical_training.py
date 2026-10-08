@@ -50,10 +50,10 @@ def main():
 
     # global parameters go here
     ## model-structural
-    a_garch = 0.0
+    a_garch = 0.2
     b_garch = 0.0
     omega = 0.005
-    phi = 0.35   # decay response AR(2) closest to AR(1) with phi = 0.5
+    phi = 0.275   # decay response AR(2) closest to AR(1) with phi = 0.5
     beta = 0.455
     gamma = 1/3.5
     n_basis = 19
