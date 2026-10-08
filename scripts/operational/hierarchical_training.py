@@ -113,7 +113,7 @@ def main():
     # Get US incidences
     # ~~~~~~~~~~~~~~~~~
 
-    _, data, dt, ts, n_observations = get_NHSN_HRD_data(start_calibrations, modifier_reference_dates, n_observations, forecast_horizon=None, state_fips=state_fips_index['fips_state'].values) # (n_season, n_variables, n_observations)
+    _, data, dt, ts, n_observations = get_NHSN_HRD_data(start_calibrations, modifier_reference_dates, n_observations, forecast_horizon=0, state_fips=state_fips_index['fips_state'].values) # (n_season, n_variables, n_observations)
 
     # Outlier detection
     # ~~~~~~~~~~~~~~~~~
