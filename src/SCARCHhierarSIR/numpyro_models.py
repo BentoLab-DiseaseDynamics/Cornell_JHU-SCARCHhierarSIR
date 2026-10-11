@@ -289,6 +289,8 @@ def forecasting_model(data, weights, posterior_params, adj, sigma_grw, args_stat
     rho = numpyro.deterministic("rho", jnp.exp(jnp.log(posterior_params['rho_global_mean']) + jnp.log(posterior_params['rho_state'])[None, :] + posterior_params['rho_season_sd'] * rho_season_raw[:, None]))
 
     ## initial infected: fI --> direct estimation
+    #fI_season_raw = numpyro.sample("fI_season_raw", dist.Normal(0, 1).expand([n_seasons]))
+    #fI = numpyro.deterministic("fI", jnp.exp(jnp.log(posterior_params['fI_global_mean']) + jnp.log(posterior_params['fI_state'])[None, :] + posterior_params['fI_season_sd'] * fI_season_raw[:, None]))
     fI = numpyro.sample("fI", dist.LogNormal(jnp.log(0.0001), 1/2).expand([n_seasons, n_states]))
 
     ## initial recovered: fR
