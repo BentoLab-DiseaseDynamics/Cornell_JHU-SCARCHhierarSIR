@@ -218,7 +218,7 @@ def main():
         adapt_step_size=True,
         max_tree_depth=12,
         target_accept_prob=0.8,
-        dense_mass=[('rho_season_raw', 'fR_season_raw')],
+        dense_mass=False,
         init_strategy = init_to_value(values=map_params),
     )
 
