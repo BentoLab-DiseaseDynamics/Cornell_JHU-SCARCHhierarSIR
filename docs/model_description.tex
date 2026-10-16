@@ -86,24 +86,24 @@ Three of the forward-simulating SIR parameters, highlighted in red in Eqs.~\eqre
 
 The case ascertainment rate in season $i$, U.S.\ state $j$ is modeled using the following additive structure with a log-link,
 \begin{align}
-	 \log \left(\rho_{i,j}\right) &= \log \left( \bar{\rho} \right) + \sigma^{(i)}_\rho\, u^{(i)}_{\rho} + \sigma^{(j)}_\rho\, u^{(j)}_{\rho}, \nonumber\\
+	 \log \left(\rho_{i,j}\right) &= \log \left( \bar{\rho} \right) + \sigma^{\text{season}}_\rho\, u^{(i)}_{\rho} + \sigma^{\text{state}}_\rho\, u^{(j)}_{\rho}, \nonumber\\
     \log \left( \bar{\rho} \right)  &\sim \Normal\!\left(\mu_{\rho},(1/2)^2\right), \nonumber\\
     \sigma^{\text{season}}_\rho,\, \sigma^{\text{state}}_\rho &\sim \HalfNormal\! \left( 1/5 \right), \nonumber\\
     u^{(i)}_{\rho}, u^{(j)}_{\rho} & \overset{\mathrm{iid}}{\sim} \Normal(0,1),
 \end{align}
-where the priors $\mu_{\rho} = \log \left( 1.0~\% \right)$ and $\sigma_{\rho} = 1/2$ center the hierarchy at 1.0~\% case ascertainment with 95~\% of the mass between $0.2~\%$ and $4.5~\%$. The halfnormal distribution on $\sigma_{\rho}^{(i)},~\sigma_{\rho}^{(j)}$ shrink season- and spatial effect sizes when the data does not support them.\\
+where the priors $\mu_{\rho} = \log \left( 1.0~\% \right)$ and $\sigma_{\rho} = 1/2$ center the hierarchy at 1.0~\% case ascertainment with 95~\% of the mass between $0.2~\%$ and $4.5~\%$. The halfnormal distribution on $\sigma_{\rho}^{\text{season}}$ and $~\sigma_{\rho}^{\text{state}}$ shrink season- and spatial effect sizes when the data does not support them.\\
 
 The initial fraction of infected $f_I$ is small ($f_I$ $\approx 10^{-4}$), and for this reason we use a log-link instead of the more natural logit-link function, because this results in better posterior geometry.\\
 
 The initial fraction of recovered $f_R$ in season $i$, U.S.\ state $j$ is modeled using a logit-additive link to enforce the unit-interval constraint,
 \begin{align}\label{eq:f_R}
-	\text{logit} \left( f_{R,i,j} \right) &= \text{logit} \left(\bar{f}_R\right) + \sigma^{(i)}_{f_R}\, u^{(i)}_{f_R} + \sigma^{(j)}_{f_R}\, u^{(j)}_{f_R}, \nonumber\\
+	\text{logit} \left( f_{R,i,j} \right) &= \text{logit} \left(\bar{f}_R\right) + \sigma^{\text{season}}_{f_R}\, u^{(i)}_{f_R} + \sigma^{\text{state}}_{f_R}\, u^{(j)}_{f_R}, \nonumber\\
     \text{logit} \left(\bar{f}_R \right) &\sim \Normal\!\left(\text{logit}(0.375),\ 0.22\right), \nonumber\\
     \sigma^{\text{season}}_{f_R} &\sim \HalfNormal\!\left(1/5\right), \nonumber\\
     \sigma^{\text{state}}_{f_R} &\sim \HalfNormal\!\left(1/25\right), \nonumber\\
     u^{(i)}_{f_R}, u^{(j)}_{f_R} & \overset{\mathrm{iid}}{\sim}\Normal(0,1),
 \end{align}
-The prior on $\text{logit} \left(\bar{f}_R\right)$ places the population-mean immunity at $37.5\pm10.0\%$, which results in an effective reproduction number of $R_e = 1 \given \Delta \beta_{i,j}(t) = 0$ at the start of the influenza season, anchoring the model, consistent with \texttt{hierarchSIR}.
+The prior on $\text{logit} \left(\bar{f}_R\right)$ places the population-mean immunity at $37.5\pm10.0\%$, which results in an effective reproduction number of $R_e = 1 \given \Delta \beta_{i,j}(t) = 0$ at the start of the influenza season, anchoring the model's transmission modifiers, consistent with \texttt{hierarchSIR}.
 
 %-----------------------------------------------------------
 \subsubsection*{Spatially Correlated AR(2)--GARCH(1,1) Transmission Modifiers}\label{sec:argarch}
@@ -228,9 +228,14 @@ alternatives to this normalization function use the average natural logarithm of
 \subsection{Forecasting}
 %-----------------------------------------------------------
 
-During an ongoing season, a reduced model is run in which all global and state-level components, as well as the season-level hyperparameters are replaced by the posterior median found during the training phase. Hence, only the current season's offsets $\left(u^{(i)}_\rho, u^{(i)}_{f_I}, u^{(i)}_{f_R}\right)$ and the AR(2)--GARCH(1,1) stochastic trajectory $z_{i,j}(t)$ are sampled, conditioned on observations from the start of the season up to the forecast date.\\
+During a new season we simulate,
+\begin{align}
+\log \left( \rho_j \right) &= \log \left( \bar{\rho} \right) + \sigma_{\rho}^{\text{state}} u^{(j)}_{\rho} + v_{\rho}^{(j)}, \nonumber \\
+v_{\rho}^{(j)} &\overset{\mathrm{iid}}{\sim} \mathcal{N} \left(0, \sigma_{\rho}^{\text{season}} \right),
+\end{align}
+meaning the case ascertainment of state $j$ is resampled from a lognormal distribution with standard deviation $\sigma_{\rho}^{\text{season}}$ centered on $\log \left( \bar{\rho} \right) + \sigma^{\text{state}}_{\rho}$, which is the posterior median optimal ascertainment value for state $j$ found during training. $f_I$ and $f_R$ follow a similar structure. The AR(2)--GARCH(1,1) stochastic trajectory $z_{i,j}(t)$ is also resampled, conditioned on observations from the start of the season up to the forecast date.\\
 
-Thus, the cross-season hyperdistributions $\bm{\Psi}$ are used as prior distributions for the inference of the forward simulation model's within-season parameters during the ongoing influenza season. The Bayesian approach to training and forecasting aligns naturally with the probabilistic nature of disease forecasting. Early in the season, when limited data are available, forecasts will be heavily informed by historical patterns, reflecting the average trends from previous years. As the season progresses and more data accumulate, the influence of the historical priors will naturally diminish. 
+The cross-season hyperdistributions $\bm{\Psi}$ are therefore used as prior distributions for the inference of the forward simulation model's within-season parameters during the ongoing influenza season. The Bayesian approach to training and forecasting aligns naturally with the probabilistic nature of disease forecasting. Early in the season, when limited data are available, forecasts will be heavily informed by historical patterns, reflecting the average trends from previous years. As the season progresses and more data accumulate, the influence of the historical priors will naturally diminish. 
 
 %-----------------------------------------------------------
 \subsection{Hypertuning}
