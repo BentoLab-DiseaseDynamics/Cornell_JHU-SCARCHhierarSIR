@@ -285,21 +285,22 @@ def forecasting_model(data, weights, posterior_params, adj, sigma_grw, args_stat
     ### global (rho_global_mean)
     ### state (rho_state)
     ### season (rho_season_sd)
-    rho_season_raw = numpyro.sample("rho_season_raw", dist.Normal(0, 1).expand([n_seasons]))
-    rho = numpyro.deterministic("rho", jnp.exp(jnp.log(posterior_params['rho_global_mean']) + jnp.log(posterior_params['rho_state'])[None, :] + posterior_params['rho_season_sd'] * rho_season_raw[:, None]))
+    rho_season_raw = numpyro.sample("rho_season_raw", dist.Normal(0, 1).expand([n_seasons, n_states]))
+    rho = numpyro.deterministic("rho", jnp.exp(jnp.log(posterior_params['rho_global_mean']) + jnp.log(posterior_params['rho_state'])[None, :] + posterior_params['rho_season_sd'] * rho_season_raw))
 
-    ## initial infected: fI --> direct estimation
-    # fI_season_raw = numpyro.sample("fI_season_raw", dist.Normal(0, 1).expand([n_seasons]))
-    #fI = numpyro.deterministic("fI", jnp.exp(jnp.log(posterior_params['fI_global_mean']) + jnp.log(posterior_params['fI_state'])[None, :] + posterior_params['fI_season_sd'] * fI_season_raw[:, None]))
-    #fI = numpyro.sample("fI", dist.LogNormal(jnp.log(posterior_params['fI_global_mean']) + jnp.log(posterior_params['fI_state'])[None, :], posterior_params['fI_season_sd']).expand([n_seasons, n_states]))
-    fI = numpyro.sample("fI", dist.LogNormal(jnp.log(0.0001), 1).expand([n_seasons, n_states]))
-    
+    ## initial infected: fI
+    ### global (fI_global_mean)
+    ### state (fR_state)
+    ### season (fR_season_sd)
+    fI_season_raw = numpyro.sample("fI_season_raw", dist.Normal(0, 1).expand([n_seasons, n_states]))
+    fI = numpyro.deterministic("fI", jnp.exp(jnp.log(posterior_params['fI_global_mean']) + jnp.log(posterior_params['fI_state'])[None, :] + posterior_params['fI_season_sd'] * fI_season_raw))
+
     ## initial recovered: fR
     ### global (fR_global_mean)
     ### state (fR_state)
     ### season (fR_season_sd)
-    fR_season_raw = numpyro.sample("fR_season_raw", dist.Normal(0, 1).expand([n_seasons]))
-    fR = numpyro.deterministic("fR", jax.nn.sigmoid(jax.scipy.special.logit(posterior_params['fR_global_mean']) + jnp.log(posterior_params['fR_state'])[None, :] + posterior_params['fR_season_sd'] * fR_season_raw[:, None]))
+    fR_season_raw = numpyro.sample("fR_season_raw", dist.Normal(0, 1).expand([n_seasons, n_states]))
+    fR = numpyro.deterministic("fR", jax.nn.sigmoid(jax.scipy.special.logit(posterior_params['fR_global_mean']) + jnp.log(posterior_params['fR_state'])[None, :] + posterior_params['fR_season_sd'] * fR_season_raw))
 
 
     # ============================================================
