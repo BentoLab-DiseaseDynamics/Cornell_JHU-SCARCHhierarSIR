@@ -128,7 +128,7 @@ To flexibly and continuously model temporal variation in the seasonal mean modif
 Specifically, let $\bm{B} \in \mathbb{R}^{L \times K}$ denote the cubic B-spline basis evaluated at the $L$ modifier weeks, with $K = 18$ basis functions and no intercept, and let $\bm{\zeta} \in \mathbb{R}^{K \times S}$ with $S$ the number of states denote the matrix of spline coefficients. For state $j$, the seasonal mean modifier at modifier week $l$ is given by,
 
 \begin{equation}
-\Delta \bar{\mathcal{B}}_j(l) = \tanh \left( \sum_{k} B_{lk}\zeta_{kj} \right),
+\Delta \bar{\mathcal{B}}_j(l) = 0.5 \tanh \left( \sum_{k} B_{lk}\zeta_{kj} \right),
 \end{equation}
 
 

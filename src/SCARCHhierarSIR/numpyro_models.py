@@ -191,7 +191,7 @@ def training_model(data, weights, adj, phi, omega, a_garch, b_garch, spline_basi
     numpyro.deterministic("delta_beta_spline_coef",  delta_beta_spline_coef)
 
     # Evaluate spline on every modifier week
-    delta_beta_state_mean = jnp.tanh(jnp.einsum("db,bs->ds", spline_basis, delta_beta_spline_coef)) # domain -1 to 1
+    delta_beta_state_mean = 0.5 * jnp.tanh(jnp.einsum("db,bs->ds", spline_basis, delta_beta_spline_coef)) # domain -1 to 1
     numpyro.deterministic("delta_beta_state_mean", delta_beta_state_mean)
 
     # ============================================================
