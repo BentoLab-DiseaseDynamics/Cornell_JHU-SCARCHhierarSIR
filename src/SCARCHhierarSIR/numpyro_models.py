@@ -160,8 +160,8 @@ def training_model(data, weights, adj, phi, omega, a_garch, b_garch, spline_basi
     # Spatial correlation
     # ============================================================
 
-    psi_1 = 1e-5 + (1 - 1e-5) * numpyro.sample("psi_1", dist.Beta(3, 3))
-    psi_2 = numpyro.sample("psi_2", dist.Beta(3, 3),)
+    psi_1 = 1e-3 + (1 - 1e-3) * numpyro.sample("psi_1", dist.Beta(3, 3))
+    psi_2 = 1e-3 + (1 - 1e-3) * numpyro.sample("psi_2", dist.Beta(3, 3),)
 
     I = jnp.eye(n_states)
     W = jnp.asarray(adj)
