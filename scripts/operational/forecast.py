@@ -322,7 +322,6 @@ def main():
     # save posterior predictive
     posterior_predictive.to_netcdf(os.path.join(output_folder, "posterior_predictive.nc"))
 
-
     # Visualise goodness-of-fit
     # ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -372,6 +371,32 @@ def main():
         os.makedirs(os.path.join(output_folder, 'goodness-fit'), exist_ok=True)
         plt.savefig(os.path.join(output_folder,f'goodness-fit/state_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
         plt.close(fig)
+
+    # Visualise across-season modifier trend + within-season median per state
+    os.makedirs(os.path.join(output_folder,'modifiers'), exist_ok=True)
+    # make dates
+    x = pd.date_range(start=datetime(2000,modifier_ref_month,modifier_ref_day), periods=n_modifiers, freq='W')
+    for s in range(n_states):
+        fig,ax=plt.subplots(figsize=(8.3, 11.7/5))
+        # average trend
+        ax.plot(x, 1+posterior_params['delta_beta_state_mean'][:,s], color='green')
+        #ax.fill_between(x,
+        #                1+posterior_params['delta_beta_state_mean'].quantile(dim=['chain', 'draw'], q=0.025).values[:,s],
+        #                1+posterior_params['delta_beta_state_mean'].quantile(dim=['chain', 'draw'], q=0.975).values[:,s],
+        #                color='green', alpha=0.15)
+        # individual seasons
+        for i in range(n_seasons):
+            ax.plot(x, 1+trace.posterior['delta_beta'].median(dim=['chain', 'draw']).values[:,i,s], color='black', alpha=0.3, linewidth=0.5)
+        ax.axhline(y=1, color='red', linewidth=0.5)
+        # decorations
+        fig.suptitle(f'{state_fips_index.iloc[s]['abbreviation_state']}')
+        ax.set_ylabel(r'$\Delta \beta_t$')
+        ax.set_ylim([0.5, 1.5])
+        ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b'))
+        plt.savefig(os.path.join(output_folder,f'modifiers/modifiers_{state_fips_index.iloc[s]['fips_state']}_{state_fips_index.iloc[s]['abbreviation_state']}.pdf'))
+        plt.close()
+
 
 
     # Send simulation output to Hubverse format
