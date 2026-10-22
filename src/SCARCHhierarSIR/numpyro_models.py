@@ -186,7 +186,7 @@ def training_model(data, weights, adj, phi, omega, a_garch, b_garch, spline_basi
     n_basis = spline_basis.shape[1]
 
     # Spatially correlated spline coefficients
-    delta_beta_spline_raw = numpyro.sample("delta_beta_spline_raw", dist.Laplace(loc=0, scale=0.035).expand([n_basis, n_states]))  # b = 0.035 --> SD = 0.05
+    delta_beta_spline_raw = numpyro.sample("delta_beta_spline_raw", dist.Laplace(loc=0, scale=0.025).expand([n_basis, n_states]))  # b = 0.025 --> SD = 3.5%
     delta_beta_spline_coef = jnp.einsum("ij,bj->bi", L_cov_modifiers, delta_beta_spline_raw)
     numpyro.deterministic("delta_beta_spline_coef",  delta_beta_spline_coef)
 
