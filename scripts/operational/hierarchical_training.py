@@ -125,7 +125,7 @@ def main():
 
     print('\ncompiling numpyro model\n')
 
-    spline_basis = jnp.asarray(dmatrix(f"bs(x, df={n_basis-1}, degree=3, include_intercept=False)", {"x": np.arange(n_modifiers)}, return_type="dataframe").to_numpy())
+    spline_basis = jnp.asarray(dmatrix(f"bs(x, df={n_basis}, degree=3, include_intercept=False) - 1", {"x": np.arange(n_modifiers)}, return_type="dataframe").to_numpy())
 
     args_static = (start_simulation, max(ts[:,-1]), modifier_length, jnp.full((n_seasons, n_states), beta), gamma, jnp.asarray(demo), ts, stepsize)
 
