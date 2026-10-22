@@ -8,7 +8,7 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
-nuts_progress_bar = False
+nuts_progress_bar = True
 n_chains = 4
 
 # Suppress the specific UserWarning from JAX regarding int64 truncation
