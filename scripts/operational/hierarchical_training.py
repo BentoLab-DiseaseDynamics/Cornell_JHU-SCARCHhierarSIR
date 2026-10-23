@@ -67,7 +67,7 @@ def main():
     n_observations = 39             # run last week of may
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
-    n_sample = 200
+    n_sample = 100
     n_burn = 500
     target_accept = 0.85
     n_preoptim = 25000
