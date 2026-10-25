@@ -8,7 +8,7 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
-nuts_progress_bar = False
+nuts_progress_bar = True
 n_chains = 4
 
 # Suppress the specific UserWarning from JAX regarding int64 truncation
@@ -50,9 +50,9 @@ def main():
 
     # global parameters go here
     ## model-structural
-    a_garch = 0.2
+    a_garch = 0.0
     b_garch = 0.0
-    omega = 0.005
+    omega = 0.001
     phi = 0.275   # decay response AR(2) closest to AR(1) with phi = 0.5
     beta = 0.455
     gamma = 1/3.5
