@@ -16,7 +16,19 @@ for ((i=1; i<=MAX_RETRIES; i++)); do
   echo "Attempt $i of $MAX_RETRIES"
   echo "Downloading data"
 
-  python data/conversion/cases/fetch-format_NHSN-HRD-data.py --preliminary True
+  # run python script to fetch data --> if it fails, counts as a retry (intermittent errors have happened)
+  if ! python data/conversion/cases/fetch-format_NHSN-HRD-data.py --preliminary True; then
+    echo "::warning::Python data-fetch script failed on attempt $i of $MAX_RETRIES."
+
+    if [[ "$i" -lt "$MAX_RETRIES" ]]; then
+      echo "Waiting $WAIT_SECONDS seconds before retrying..."
+      sleep "$WAIT_SECONDS"
+      continue
+    else
+      echo "::error::Python data-fetch script failed after $MAX_RETRIES attempts."
+      exit 1
+    fi
+  fi
 
   NEWEST_FILE=$(ls -t "$DATA_DIR"/NHSN-HRD_reference-date-*_gathered-*.parquet.gzip | head -n 1)
 
