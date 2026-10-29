@@ -8,9 +8,6 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
-import sys
-sys.exit('lol')
-
 ##################
 ## Dependencies ##
 ##################
