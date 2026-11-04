@@ -19,7 +19,9 @@ import re
 import arviz
 import numpy as np
 import pandas as pd
+import xarray as xr
 from pathlib import Path
+from scipy.stats import nbinom
 from datetime import datetime, timedelta
 from typing import Iterable, Optional, Tuple, List, Union
 
@@ -316,10 +318,40 @@ def get_NHSN_HRD_data(
     return reference_date, data_arr, dates_arr, timesteps_arr, n_observations
 
 
-
 ########################################
 ## Conversion and Hubverse formatting ##
 ########################################
+
+
+def resample_negative_binomial(da, alpha):
+    """Resamples each element in a DataArray using a Negative Binomial distribution.
+
+    Parameters:
+    da (xr.DataArray): The input array containing the means (mu).
+    alpha (float): The dispersion/shape parameter.
+    """
+
+    # 1. Define the core vectorized sampling function
+    def _sample_func(mu):
+        # Calculate scipy's p parameter using alpha and mu
+        p = alpha / (alpha + mu)
+        n = alpha
+
+        # Draw a random sample matching the shape of mu
+        return nbinom.rvs(n, p)
+
+    # 2. Use apply_ufunc to broadcast over the entire xarray architecture
+    resampled_da = xr.apply_ufunc(
+        _sample_func,
+        da,
+        input_core_dims=[[]],  # Indicates the function operates element-wise
+        output_core_dims=[[]],
+        vectorize=True,  # Enables vectorization over the numpy array
+        dask="parallelized",  # Optional: keeps compatibility if using dask arrays
+    )
+
+    return resampled_da
+
 
 def simout_to_hubverse_peak_admissions(simout: arviz.InferenceData,
                                         reference_date: datetime,
@@ -393,7 +425,6 @@ def simout_to_hubverse_peak_admissions(simout: arviz.InferenceData,
     df["value"] = df["value"].round().astype(int)
 
     return df
-
 
 
 def simout_to_hubverse_peak_timing(simout: arviz.InferenceData,
