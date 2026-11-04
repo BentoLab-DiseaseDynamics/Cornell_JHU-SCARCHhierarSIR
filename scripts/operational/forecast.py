@@ -57,9 +57,9 @@ def main():
     season = '2026-2027'            
     n_observations = 52              # use all data available in the forecast season
     forecast_horizon = 20            # forecast sufficiently ahead to capture peaks
-    n_preoptim = 500
-    n_sample = 25
-    n_tune = 25
+    n_preoptim = 5000
+    n_sample = 250
+    n_tune = 250
     sigma_grw = 0.01
 
     ## load the model-structural parameters and training metadata
