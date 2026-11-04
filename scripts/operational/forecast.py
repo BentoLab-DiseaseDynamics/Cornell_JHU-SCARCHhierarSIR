@@ -36,7 +36,7 @@ import numpyro
 numpyro.set_host_device_count(n_chains)
 import arviz # must be after numpyro.infer
 # model package
-from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, simout_to_hubverse_admissions, simout_to_hubverse_peak_admissions, simout_to_hubverse_peak_timing
+from SCARCHhierarSIR.data import get_demography, get_adjacency_matrix, get_NHSN_HRD_data, simout_to_hubverse_admissions, simout_to_hubverse_peak_admissions, simout_to_hubverse_peak_timing, resample_negative_binomial
 from SCARCHhierarSIR.numpyro_utils import compute_season_weights, find_map
 
 
@@ -57,9 +57,9 @@ def main():
     season = '2026-2027'            
     n_observations = 52              # use all data available in the forecast season
     forecast_horizon = 20            # forecast sufficiently ahead to capture peaks
-    n_preoptim = 5000
-    n_sample = 250
-    n_tune = 250
+    n_preoptim = 500
+    n_sample = 25
+    n_tune = 25
     sigma_grw = 0.01
 
     ## load the model-structural parameters and training metadata
@@ -329,6 +329,9 @@ def main():
     data = xr.concat([posterior_predictive.observed_data['obs'], posterior_predictive.observed_data['obs'].sum(dim="state").assign_coords(state="US").expand_dims("state")], dim="state")
     obs = xr.concat([posterior_predictive.posterior_predictive['obs'], posterior_predictive.posterior_predictive['obs'].sum(dim="state").assign_coords(state="US").expand_dims("state")], dim="state")
     pred = xr.concat([posterior_predictive.posterior_predictive['pred'], posterior_predictive.posterior_predictive['pred'].sum(dim="state").assign_coords(state="US").expand_dims("state")], dim="state")
+
+    # overdisperse it --> summing results in severe undercoverage
+    pred.loc[{'state': 'US'}] = resample_negative_binomial(pred.sel({'state': 'US'}), 30)
 
     # expand fips index
     state_fips_index["fips_state"] = state_fips_index["fips_state"].map("{:02d}".format)
