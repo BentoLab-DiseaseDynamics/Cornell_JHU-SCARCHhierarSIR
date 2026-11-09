@@ -27,22 +27,22 @@ from SCARCHhierarSIR.jax_forward_sim_model import forward_sim_jax
 training_RV_dims = {
 
     # ascertainment
-    "rho_state_raw": ["state"],
-    "rho_season_raw": ["season"],
+    "log_rho_state_raw": ["state"],
+    "log_rho_season_raw": ["season"],
     "rho_state": ["state"],
     "rho_season": ["season"],
     "rho": ["season", "state"],
 
     # initial infected
-    "fI_state_raw": ["state"],
-    "fI_season_raw": ["season"],
+    "log_fI_state_raw": ["state"],
+    "log_fI_season_raw": ["season"],
     "fI_state": ["state"],
     "fI_season": ["season"],
     "fI": ["season", "state"],
 
     # initial recovered
-    "fR_state_raw": ["state"],
-    "fR_season_raw": ["season"],
+    "logit_fR_state_raw": ["state"],
+    "logit_fR_season_raw": ["season"],
     "fR_state": ["state"],
     "fR_season": ["season"],
     "fR": ["season", "state"],
@@ -77,23 +77,25 @@ def training_model(data, weights, adj, phi, omega, a_garch, b_garch, spline_basi
 
     # Global
     log_rho_global_mean = numpyro.sample("log_rho_global_mean", dist.Normal(jnp.log(0.01), 1/2))   # 0.01, 1/2
-    numpyro.deterministic("rho_global_mean", jnp.exp(log_rho_global_mean))
+    log_rho_global_sd =  numpyro.sample("log_rho_global_sd", dist.HalfNormal(1/2))
+    log_rho_global = numpyro.sample("log_rho_global", dist.Normal(log_rho_global_mean, log_rho_global_sd))                             
+    numpyro.deterministic("rho_global", jnp.exp(log_rho_global))
 
     # State
-    rho_state_sd = numpyro.sample("rho_state_sd", dist.HalfNormal(1/5))
-    rho_state_raw = numpyro.sample("rho_state_raw", dist.Normal(0, 1).expand([n_states]))
-    numpyro.deterministic("rho_state", jnp.exp(rho_state_sd * rho_state_raw))
+    log_rho_state_sd = numpyro.sample("log_rho_state_sd", dist.HalfNormal(1/5))
+    log_rho_state_raw = numpyro.sample("log_rho_state_raw", dist.Normal(0, 1).expand([n_states]))
+    numpyro.deterministic("rho_state", jnp.exp(log_rho_state_sd * log_rho_state_raw))
 
     # Season
-    rho_season_sd = numpyro.sample("rho_season_sd", dist.HalfNormal(1/5))
-    rho_season_raw = numpyro.sample("rho_season_raw", dist.Normal(0, 1).expand([n_seasons]))
-    numpyro.deterministic("rho_season", jnp.exp(rho_season_sd * rho_season_raw))
+    log_rho_season_sd = numpyro.sample("log_rho_season_sd", dist.HalfNormal(1/5))
+    log_rho_season_raw = numpyro.sample("log_rho_season_raw", dist.Normal(0, 1).expand([n_seasons]))
+    numpyro.deterministic("rho_season", jnp.exp(log_rho_season_sd * log_rho_season_raw))
 
     # Additive hierarchy
     log_rho = (
-        log_rho_global_mean
-        + rho_state_sd * rho_state_raw[None, :]
-        + rho_season_sd * rho_season_raw[:, None]
+        log_rho_global
+        + log_rho_state_sd * log_rho_state_raw[None, :]
+        + log_rho_season_sd * log_rho_season_raw[:, None]
     )
 
     rho = numpyro.deterministic("rho", jnp.exp(log_rho))
@@ -105,23 +107,25 @@ def training_model(data, weights, adj, phi, omega, a_garch, b_garch, spline_basi
 
     # Global
     log_fI_global_mean = numpyro.sample("log_fI_global_mean", dist.Normal(jnp.log(0.0001), 1/2))    # 0.0001, 1/2
-    numpyro.deterministic("fI_global_mean", jnp.exp(log_fI_global_mean))
+    log_fI_global_sd = numpyro.sample("log_fI_global_sd", dist.HalfNormal(1/2))
+    log_fI_global = numpyro.sample("log_fI_global", dist.Normal(log_fI_global_mean, log_fI_global_sd))         
+    numpyro.deterministic("fI_global", jnp.exp(log_fI_global))
 
     # State
-    fI_state_sd = numpyro.sample("fI_state_sd", dist.HalfNormal(1/5))
-    fI_state_raw = numpyro.sample("fI_state_raw", dist.Normal(0, 1).expand([n_states]))
-    numpyro.deterministic("fI_state", jnp.exp(fI_state_sd * fI_state_raw))
+    log_fI_state_sd = numpyro.sample("log_fI_state_sd", dist.HalfNormal(1/5))
+    log_fI_state_raw = numpyro.sample("log_fI_state_raw", dist.Normal(0, 1).expand([n_states]))
+    numpyro.deterministic("fI_state", jnp.exp(log_fI_state_sd * log_fI_state_raw))
 
     # Season
-    fI_season_sd = numpyro.sample("fI_season_sd", dist.HalfNormal(1/5))
-    fI_season_raw = numpyro.sample("fI_season_raw", dist.Normal(0, 1).expand([n_seasons]))
-    numpyro.deterministic("fI_season", jnp.exp(fI_season_sd * fI_season_raw))
+    log_fI_season_sd = numpyro.sample("log_fI_season_sd", dist.HalfNormal(1/5))
+    log_fI_season_raw = numpyro.sample("log_fI_season_raw", dist.Normal(0, 1).expand([n_seasons]))
+    numpyro.deterministic("fI_season", jnp.exp(log_fI_season_sd * log_fI_season_raw))
 
     # Additive hierarchy
     log_fI = (
-        log_fI_global_mean
-        + fI_state_sd * fI_state_raw[None, :]
-        + fI_season_sd * fI_season_raw[:, None]
+        log_fI_global
+        + log_fI_state_sd * log_fI_state_raw[None, :]
+        + log_fI_season_sd * log_fI_season_raw[:, None]
     )
 
     fI = numpyro.deterministic("fI", jnp.exp(log_fI))
@@ -133,24 +137,25 @@ def training_model(data, weights, adj, phi, omega, a_garch, b_garch, spline_basi
 
     # Global
     logit_fR_global_mean = numpyro.sample("logit_fR_global_mean", dist.Normal(jax.scipy.special.logit(0.375), 0.22)) # 0.375, 0.22
-    fR_global_mean = jax.nn.sigmoid(logit_fR_global_mean)
-    numpyro.deterministic("fR_global_mean", fR_global_mean)
+    logit_fR_global_sd = numpyro.sample("logit_fR_global_sd", dist.HalfNormal(0.22))
+    logit_fR_global = numpyro.sample("logit_fR_global", dist.Normal(logit_fR_global_mean, logit_fR_global_sd))     
+    numpyro.deterministic("fR_global", jax.nn.sigmoid(logit_fR_global))
 
     # State
-    fR_state_sd = numpyro.sample("fR_state_sd", dist.HalfNormal(1/25))
-    fR_state_raw = numpyro.sample("fR_state_raw", dist.Normal(0, 1).expand([n_states]))
-    numpyro.deterministic("fR_state", jnp.exp(fR_state_sd * fR_state_raw))
+    logit_fR_state_sd = numpyro.sample("logit_fR_state_sd", dist.HalfNormal(1/25))
+    logit_fR_state_raw = numpyro.sample("logit_fR_state_raw", dist.Normal(0, 1).expand([n_states]))
+    numpyro.deterministic("fR_state", jnp.exp(logit_fR_state_sd * logit_fR_state_raw))
 
     # Season
-    fR_season_sd = numpyro.sample("fR_season_sd", dist.HalfNormal(1/5))
-    fR_season_raw = numpyro.sample("fR_season_raw", dist.Normal(0, 1).expand([n_seasons]))
-    numpyro.deterministic("fR_season", jnp.exp(fR_season_sd * fR_season_raw))
+    logit_fR_season_sd = numpyro.sample("logit_fR_season_sd", dist.HalfNormal(1/5))
+    logit_fR_season_raw = numpyro.sample("logit_fR_season_raw", dist.Normal(0, 1).expand([n_seasons]))
+    numpyro.deterministic("fR_season", jnp.exp(logit_fR_season_sd * logit_fR_season_raw))
 
     # Additive hierarchy
     logit_fR = (
-        logit_fR_global_mean
-        + fR_state_sd * fR_state_raw[None, :]
-        + fR_season_sd * fR_season_raw[:, None]
+        logit_fR_global
+        + logit_fR_state_sd * logit_fR_state_raw[None, :]
+        + logit_fR_season_sd * logit_fR_season_raw[:, None]
     )
 
     fR = numpyro.deterministic("fR", jax.nn.sigmoid(logit_fR))
@@ -246,15 +251,15 @@ def training_model(data, weights, adj, phi, omega, a_garch, b_garch, spline_basi
 forecasting_RV_dims = {
 
     # ascertainment
-    "rho_season_raw": ["season"],
+    "log_rho_season_raw": ["season"],
     "rho": ["season", "state"],
 
     # initial infected
-    "fI_season_raw": ["season"],
+    "log_fI_season_raw": ["season"],
     "fI": ["season", "state"],
 
     # initial recovered
-    "fR_season_raw": ["season"],
+    "logit_fR_season_raw": ["season"],
     "fR": ["season", "state"],
 
     # modifier parameters
@@ -283,24 +288,27 @@ def forecasting_model(data, weights, posterior_params, adj, sigma_grw, args_stat
 
     ## ascertainment: rho
     ### global (rho_global_mean)
+    log_rho_global = numpyro.sample("log_rho_global", dist.Normal(posterior_params['log_rho_global_mean'], posterior_params['log_rho_global_sd']))
     ### state (rho_state)
     ### season (rho_season_sd)
-    rho_season_raw = numpyro.sample("rho_season_raw", dist.Normal(0, 1).expand([n_seasons, n_states]))
-    rho = numpyro.deterministic("rho", jnp.exp(jnp.log(posterior_params['rho_global_mean']) + jnp.log(posterior_params['rho_state'])[None, :] + posterior_params['rho_season_sd'] * rho_season_raw))
+    log_rho_season_raw = numpyro.sample("log_rho_season_raw", dist.Normal(0, 1).expand([n_seasons, n_states]))
+    rho = numpyro.deterministic("rho", jnp.exp(log_rho_global + jnp.log(posterior_params['rho_state'])[None, :] + posterior_params['log_rho_season_sd'] * log_rho_season_raw))
 
     ## initial infected: fI
     ### global (fI_global_mean)
+    log_fI_global = numpyro.sample("log_fI_global", dist.Normal(posterior_params['log_fI_global_mean'], posterior_params['log_fI_global_sd']))
     ### state (fR_state)
     ### season (fR_season_sd)
-    fI_season_raw = numpyro.sample("fI_season_raw", dist.Normal(0, 1).expand([n_seasons, n_states]))
-    fI = numpyro.deterministic("fI", jnp.exp(jnp.log(posterior_params['fI_global_mean']) + jnp.log(posterior_params['fI_state'])[None, :] + posterior_params['fI_season_sd'] * fI_season_raw))
+    log_fI_season_raw = numpyro.sample("log_fI_season_raw", dist.Normal(0, 1).expand([n_seasons, n_states]))
+    fI = numpyro.deterministic("fI", jnp.exp(log_fI_global + jnp.log(posterior_params['fI_state'])[None, :] + posterior_params['log_fI_season_sd'] * log_fI_season_raw))
 
     ## initial recovered: fR
     ### global (fR_global_mean)
+    logit_fR_global = numpyro.sample("logit_fR_global", dist.Normal(posterior_params['logit_fR_global_mean'], posterior_params['logit_fR_global_sd']))
     ### state (fR_state)
     ### season (fR_season_sd)
-    fR_season_raw = numpyro.sample("fR_season_raw", dist.Normal(0, 1).expand([n_seasons, n_states]))
-    fR = numpyro.deterministic("fR", jax.nn.sigmoid(jax.scipy.special.logit(posterior_params['fR_global_mean']) + jnp.log(posterior_params['fR_state'])[None, :] + posterior_params['fR_season_sd'] * fR_season_raw))
+    logit_fR_season_raw = numpyro.sample("logit_fR_season_raw", dist.Normal(0, 1).expand([n_seasons, n_states]))
+    fR = numpyro.deterministic("fR", jax.nn.sigmoid(logit_fR_global + jnp.log(posterior_params['fR_state'])[None, :] + posterior_params['logit_fR_season_sd'] * logit_fR_season_raw))
 
 
     # ============================================================

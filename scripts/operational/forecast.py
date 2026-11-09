@@ -48,7 +48,7 @@ def main():
 
     # global parameters go here
     ## training metadata
-    target_accept = 0.85
+    target_accept = 0.95
     training_name = f'exclude_None-a_garch_0.0-phi_0.275-omega_0.001-targetaccept_{target_accept}'
     training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     ## forecasting settings
@@ -121,21 +121,30 @@ def main():
 
     # unpack
     posterior_params = {
-        'rho_global_mean':          hyperpars['rho_global_mean'].unique()[0],
-        'rho_season_sd':            hyperpars['rho_season_sd'].unique()[0],
-        'fI_global_mean':           hyperpars['fI_global_mean'].unique()[0],
-        'fI_season_sd':             hyperpars['fI_season_sd'].unique()[0],
-        'fR_global_mean':           hyperpars['fR_global_mean'].unique()[0],
-        'fR_season_sd':             hyperpars['fR_season_sd'].unique()[0],
+        'log_rho_global_mean':      hyperpars['log_rho_global_mean'].unique()[0],
+        'log_rho_global_sd':        hyperpars['log_rho_global_sd'].unique()[0],
+        'log_rho_season_sd':        hyperpars['log_rho_season_sd'].unique()[0],
+        'rho_state':                hyperpars['rho_state'].values,
+
+        'log_fI_global_mean':       hyperpars['log_fI_global_mean'].unique()[0],
+        'log_fI_global_sd':         hyperpars['log_fI_global_sd'].unique()[0],
+        'log_fI_season_sd':         hyperpars['log_fI_season_sd'].unique()[0],
+        'fI_state':                 hyperpars['fI_state'].values,
+
+        'logit_fR_global_mean':     hyperpars['logit_fR_global_mean'].unique()[0],
+        'logit_fR_global_sd':       hyperpars['logit_fR_global_sd'].unique()[0],
+        'logit_fR_season_sd':       hyperpars['logit_fR_season_sd'].unique()[0],
+        'fR_state':                 hyperpars['fR_state'].values,
+
         'psi_2':                    hyperpars['psi_2'].unique()[0],
+
         'phi':                      hyperpars['phi'].unique()[0],
         'omega':                    hyperpars['omega'].unique()[0],
         'a_garch':                  hyperpars['a_garch'].unique()[0],
         'b_garch':                  hyperpars['b_garch'].unique()[0],
+
         'alpha_inv':                hyperpars['alpha_inv'].values,
-        'rho_state':                hyperpars['rho_state'].values,
-        'fI_state':                 hyperpars['fI_state'].values,
-        'fR_state':                 hyperpars['fR_state'].values,
+
         'delta_beta_state_mean':    np.transpose(hyperpars[[c for c in hyperpars.columns if c.startswith("delta_beta_state_mean_")]].to_numpy())
     }
 
@@ -218,7 +227,7 @@ def main():
         adapt_step_size=True,
         max_tree_depth=12,
         target_accept_prob=0.8,
-        dense_mass=False,
+        dense_mass=[('log_rho_global', 'log_fI_global', 'logit_fR_global'),],
         init_strategy = init_to_value(values=map_params),
     )
 
