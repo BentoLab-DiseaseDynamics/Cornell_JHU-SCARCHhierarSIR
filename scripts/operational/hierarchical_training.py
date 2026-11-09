@@ -8,7 +8,7 @@ Copyright (c) 2026 T.W. Alleman
 Licensed under CC BY-NC-SA 4.0
 """
 
-nuts_progress_bar = True
+nuts_progress_bar = False
 n_chains = 4
 
 # Suppress the specific UserWarning from JAX regarding int64 truncation
@@ -67,10 +67,10 @@ def main():
     n_observations = 39             # run last week of may
     seasons = ['2023-2024', '2024-2025', '2025-2026']
     ## sampling effort
-    n_sample = 200
+    n_sample = 250
     n_burn = 500
     target_accept = 0.85
-    n_preoptim = 25000
+    n_preoptim = 5000
     training_name = f'exclude_None-a_garch_{a_garch}-phi_{phi}-omega_{omega}-targetaccept_{target_accept}'
     ## use previous sampling
     find_new_map = False
@@ -208,7 +208,7 @@ def main():
         adapt_step_size=True,
         max_tree_depth=12,
         target_accept_prob=target_accept,
-        dense_mass=[('log_rho_global_mean', 'log_fI_global_mean', 'logit_fR_global_mean'), ('rho_season_sd', 'rho_season_raw', 'fI_season_sd', 'fI_season_raw', 'fR_season_sd', 'fR_season_raw')],
+        dense_mass=[('log_rho_global_mean', 'log_rho_global_sd', 'log_fI_global_mean', 'log_fI_global_sd', 'logit_fR_global_mean', 'logit_fR_global_sd'), ('log_rho_season_sd', 'log_rho_season_raw', 'log_fI_season_sd', 'log_fI_season_raw', 'logit_fR_season_sd', 'logit_fR_season_raw')],
         init_strategy = init_to_value(values=map_params),
     )
 
@@ -333,12 +333,12 @@ def main():
 
     # Generate traces
     variables2plot = [
-                    'alpha_inv',                                                                            # overdispersion
-                    'rho_global_mean', 'rho_state_sd', 'rho_state', 'rho_season_sd', 'rho_season', 'rho',   # rho
-                    'fI_global_mean', 'fI_state_sd', 'fI_state', 'fI_season_sd', 'fI_season', 'fI',         # fI
-                    'fR_global_mean', 'fR_state_sd', 'fR_state', 'fR_season_sd', 'fR_season', 'fR',         # fR
-                    'psi_2', 'psi_1',                                                                       # spatial correlation strength
-                    'phi', 'omega',                                                                         # AR - GARCH
+                    'alpha_inv',                                                                                                                            # overdispersion
+                    'rho_global', 'log_rho_global_mean', 'log_rho_global_sd', 'log_rho_state_sd', 'rho_state', 'log_rho_season_sd', 'rho_season', 'rho',    # rho
+                    'fI_global', 'log_fI_global_mean', 'log_fI_global_sd', 'log_fI_state_sd', 'fI_state', 'log_fI_season_sd', 'fI_season', 'fI',            # fI
+                    'fR_global', 'logit_fR_global_mean', 'logit_fR_global_sd', 'logit_fR_state_sd', 'fR_state', 'logit_fR_season_sd', 'fR_season', 'fR',    # fR
+                    'psi_2', 'psi_1',                                                                                                                       # spatial correlation
+                    'phi', 'omega',                                                                                                                         # AR - GARCH
                     'a_garch', 'b_garch',
                     ]
 
@@ -414,7 +414,7 @@ def main():
     labels_params = [r'$\rho$', r'$f_I$', r'$f_R$']
     state_params = ["rho_state", "fI_state", "fR_state"]
     season_params = ["rho_season", "fI_season", "fR_season"]
-    global_params = ["rho_global_mean", "fI_global_mean", "fR_global_mean"]
+    global_params = ["rho_global", "fI_global", "fR_global"]
     params = ['rho', 'fI', 'fR']
     effect_type = ['Multiplicative', 'Multiplicative', 'Odds-ratio']
 
@@ -583,12 +583,15 @@ def main():
 
     # scalar parameters (repeat per state)
     scalar_params = [
-        "rho_global_mean",
-        "rho_season_sd",
-        "fI_global_mean",
-        "fI_season_sd",
-        "fR_global_mean",
-        "fR_season_sd",
+        "log_rho_global_mean",
+        "log_rho_global_sd",
+        "log_rho_season_sd",
+        "log_fI_global_mean",
+        "log_fI_global_sd",
+        "log_fI_season_sd",
+        "logit_fR_global_mean",
+        "logit_fR_global_sd",
+        "logit_fR_season_sd",
         "psi_1",    
         "psi_2",
         "phi",
