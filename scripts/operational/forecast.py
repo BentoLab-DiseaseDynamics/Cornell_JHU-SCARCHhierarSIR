@@ -48,7 +48,7 @@ def main():
 
     # global parameters go here
     ## training metadata
-    target_accept = 0.85
+    target_accept = 0.95
     training_name = f'exclude_None-a_garch_0.0-phi_0.275-omega_0.001-targetaccept_{target_accept}'
     training_folder = os.path.join(abs_dir, f'../../data/interim/calibration/hierarchical-training/{training_name}')
     ## forecasting settings
