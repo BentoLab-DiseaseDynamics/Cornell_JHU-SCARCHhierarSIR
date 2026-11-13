@@ -60,7 +60,7 @@ def main():
     n_preoptim = 5000
     n_sample = 250
     n_tune = 250
-    sigma_grw = 0.01
+    sigma_grw = 0.15
 
     ## load the model-structural parameters and training metadata
     with open(os.path.join(training_folder, "model_config.json"), "r") as f:
