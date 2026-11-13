@@ -340,7 +340,7 @@ def main():
     pred = xr.concat([posterior_predictive.posterior_predictive['pred'], posterior_predictive.posterior_predictive['pred'].sum(dim="state").assign_coords(state="US").expand_dims("state")], dim="state")
 
     # overdisperse it --> summing results in severe undercoverage
-    pred.loc[{'state': 'US'}] = resample_negative_binomial(pred.sel({'state': 'US'}), 30)
+    pred.loc[{'state': 'US'}] = resample_negative_binomial(pred.sel({'state': 'US'}), 50)
 
     # expand fips index
     state_fips_index["fips_state"] = state_fips_index["fips_state"].map("{:02d}".format)
