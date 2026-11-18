@@ -16,6 +16,7 @@ import sys
 import time
 import jax
 import optax
+import xarray as xr
 import jax.numpy as jnp
 import numpyro.distributions as dist
 from numpyro.infer.util import initialize_model
@@ -246,3 +247,64 @@ class WeightedNB(dist.Distribution):
         nb_dist = dist.NegativeBinomial2(mean=self.mu, concentration=self.alpha[None, :, None])
 
         return nb_dist.sample(key, sample_shape=sample_shape)
+
+
+
+###########################
+## Geometric Random Walk ##
+###########################
+
+
+def add_geometric_random_walk(da, dim, sigma, rng_key):
+    """Apply geometric random walk to DataArray along specified dimension.
+    
+    This function adds time-correlated variance to a forecast by applying a
+    geometric random walk along the specified dimension.
+    
+    The geometric random walk is implemented as:
+        y_t = y_0 * exp(sigma * sum_{i=1}^t epsilon_i)
+    where epsilon_i ~ N(0, 1) are independent normal innovations.
+    
+    Parameters
+    ----------
+    da : xarray.DataArray
+        The input DataArray to apply the GRW to.
+    
+    dim : str
+        The dimension name along which to apply the random walk.
+    
+    sigma : float
+        The standard deviation of the GRW innovations. Controls the
+        amount of variance added. Higher values result in more dispersion.
+    
+    rng_key : jax.random.PRNGKey
+        JAX random key for generating innovations. Should be split from
+        the main random key to ensure reproducibility.
+    
+    Returns
+    -------
+    xarray.DataArray
+        DataArray with GRW applied along the specified dimension.
+        Has the same shape and dimensions as the input.
+    """
+
+    other_dims = [d for d in da.dims if d != dim]
+    other_shape = tuple(da.sizes[d] for d in other_dims)
+    n_grw = da.sizes[dim]
+    
+    # Generate normal innovations: shape (*other_shape, n_grw)
+    eps = jax.random.normal(rng_key, shape=(*other_shape, n_grw))
+    
+    # Cumulative sum along GRW dimension (last axis)
+    cumulative_eps = jnp.cumsum(eps, axis=-1)
+    
+    # Compute multipliers: exp(sigma * cumulative_eps)
+    multipliers = jnp.exp(sigma * cumulative_eps)
+    
+    # Create DataArray with matching coordinates
+    multiplier_da = xr.DataArray(
+        multipliers,
+        dims=(*other_dims, dim),
+        coords={d: da.coords[d] for d in other_dims}
+    )
+    return da * multiplier_da
