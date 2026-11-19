@@ -61,6 +61,7 @@ def main():
     n_sample = 250
     n_tune = 250
     sigma_grw = 0.20
+    sigma_grw_US = 0.15
 
     ## load the model-structural parameters and training metadata
     with open(os.path.join(training_folder, "model_config.json"), "r") as f:
@@ -341,7 +342,7 @@ def main():
 
     # apply Geometric Random Walk to US forecast to correct underdispersion
     rng_key, rng_key_us = jax.random.split(rng_predict)
-    pred.loc[{'state': 'US'}] = add_geometric_random_walk(pred.sel(state='US'), dim='horizon_forecast', sigma=sigma_grw, rng_key=rng_key_us)
+    pred.loc[{'state': 'US'}] = add_geometric_random_walk(pred.sel(state='US'), dim='horizon_forecast', sigma=sigma_grw_US, rng_key=rng_key_us)
 
     # expand fips index
     state_fips_index["fips_state"] = state_fips_index["fips_state"].map("{:02d}".format)
