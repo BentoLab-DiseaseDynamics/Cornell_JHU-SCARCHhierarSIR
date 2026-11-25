@@ -20,7 +20,7 @@ import xarray as xr
 import jax.numpy as jnp
 import numpyro.distributions as dist
 from numpyro.infer.util import initialize_model
-from numpyro.infer import init_to_median, init_to_sample, init_to_mean, init_to_value
+from numpyro.infer import init_to_median, init_to_value
 
 
 #####################
