@@ -38,7 +38,7 @@ jobs:
         shell: bash -l {0}
         run: |
           conda activate SCARCH_HIERARSIR
-          pip install -e . --force-reinstall
+          pip install -e . --upgrade
 
       - name: Compute forecasts 
         shell: bash -l {0}
