@@ -21,6 +21,9 @@ dependencies = [
     "arviz>1.0",
     "netcdf4",
     "optax",
+    "xarray",
+    "scipy",
+    "pygam"
 ]
 
 [project.optional-dependencies]
